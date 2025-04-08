@@ -29,7 +29,7 @@ class SlicerGPT(ScriptedLoadableModule):
 
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = _("SlicerGPT")  # TODO: make this more human readable by adding spaces
+        self.parent.title = ("SlicerGPT")  # TODO: make this more human readable by adding spaces
         # TODO: set categories (folders where the module shows up in the module selector)
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Utilities")]
         self.parent.dependencies = []  # TODO: add here list of module names that this module requires
@@ -251,16 +251,14 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onApplyButton(self) -> None:
         """Run processing when user clicks "Apply" button."""
-        # with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
-        #     # Compute output
-        #     self.logic.process(self.ui.inputSelector.currentNode(), self.ui.outputSelector.currentNode(),
-        #                        self.ui.imageThresholdSliderWidget.value, self.ui.invertOutputCheckBox.checked)
-
-        #     # Compute inverted output (if needed)
-        #     if self.ui.invertedOutputSelector.currentNode():
-        #         # If additional output volume is selected then result with inverted threshold is written there
-        #         self.logic.process(self.ui.inputSelector.currentNode(), self.ui.invertedOutputSelector.currentNode(),
-        #                            self.ui.imageThresholdSliderWidget.value, not self.ui.invertOutputCheckBox.checked, showResult=False)
+        with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
+            # Compute output
+            text = self.ui.prompt.toPlainText()
+            self.ui.prompt.clear()
+            message = {"role": "user", "content": text}
+            dialogue = self.logic.process(message)
+            self.ui.conversation.setText(dialogue)
+            
 
 
 #
@@ -281,47 +279,49 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     def __init__(self) -> None:
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
         ScriptedLoadableModuleLogic.__init__(self)
+        self.dialogue = []
 
     def getParameterNode(self):
         return SlicerGPTParameterNode(super().getParameterNode())
+    
+    def formatDialogue(self) -> str:
+        """
+        Return the formatted text of the dialogue, it will be displayed in the conversation widget.
+        """
+        finalDialogue = []
+        for message in self.dialogue:
+            content = message["content"].replace('\n', '<br>')
+            if message["role"] == "system":
+                finalDialogue.append(f'<div style="text-align:left; margin: 5px;">SlicerGPT:<br>{content}</div>')
+            elif message["role"] == "user":
+                finalDialogue.append(f'<div style="text-align:right; margin: 5px;">You:<br>{content}</div>')
 
-    def process(self,
-                inputVolume: vtkMRMLScalarVolumeNode,
-                outputVolume: vtkMRMLScalarVolumeNode,
-                imageThreshold: float,
-                invert: bool = False,
-                showResult: bool = True) -> None:
+
+        return "\n\n".join(finalDialogue)
+
+    def process(self, message) -> str:
         """
         Run the processing algorithm.
-        Can be used without GUI widget.
-        :param inputVolume: volume to be thresholded
-        :param outputVolume: thresholding result
-        :param imageThreshold: values above/below this threshold will be set to 0
-        :param invert: if True then values above the threshold will be set to 0, otherwise values below are set to 0
-        :param showResult: show output volume in slice viewers
+        TODO complete when the final process will be planned.
         """
-
-        if not inputVolume or not outputVolume:
-            raise ValueError("Input or output volume is invalid")
 
         import time
 
         startTime = time.time()
         logging.info("Processing started")
 
-        # Compute the thresholded output volume using the "Threshold Scalar Volume" CLI module
-        cliParams = {
-            "InputVolume": inputVolume.GetID(),
-            "OutputVolume": outputVolume.GetID(),
-            "ThresholdValue": imageThreshold,
-            "ThresholdType": "Above" if invert else "Below",
-        }
-        cliNode = slicer.cli.run(slicer.modules.thresholdscalarvolume, None, cliParams, wait_for_completion=True, update_display=showResult)
-        # We don't need the CLI module node anymore, remove it to not clutter the scene with it
-        slicer.mrmlScene.RemoveNode(cliNode)
+        self.dialogue.append(message)
+
+        # Process message -> tokenizer.apply_chat_template(message) & model.generate
+
+        self.dialogue.append({"role": "system", "content": "Oui chakal j'ai vu ton message"})
 
         stopTime = time.time()
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
+
+        newDialogue = self.formatDialogue()
+
+        return newDialogue
 
 
 #

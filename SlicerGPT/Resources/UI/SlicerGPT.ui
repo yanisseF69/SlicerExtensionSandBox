@@ -12,9 +12,12 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
+    <widget class="QTextBrowser" name="conversation"/>
+   </item>
+   <item>
     <widget class="QPlainTextEdit" name="prompt">
      <property name="plainText">
-      <string>ttt</string>
+      <string/>
      </property>
     </widget>
    </item>
