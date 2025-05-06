@@ -16,6 +16,8 @@ from slicer.parameterNodeWrapper import (
 
 from slicer import vtkMRMLScalarVolumeNode
 
+import qt
+
 
 #
 # SlicerGPT
@@ -33,17 +35,20 @@ class SlicerGPT(ScriptedLoadableModule):
         # TODO: set categories (folders where the module shows up in the module selector)
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Utilities")]
         self.parent.dependencies = []  # TODO: add here list of module names that this module requires
-        self.parent.contributors = ["Yanisse FERHAOUI (Institut Pascal)"]  # TODO: replace with "Firstname Lastname (Organization)"
+        self.parent.contributors = ["Yanisse FERHAOUI - Institut Pascal"]  # TODO: replace with "Firstname Lastname (Organization)"
         # TODO: update with short description of the module and a link to online module documentation
         # _() function marks text as translatable to other languages
         self.parent.helpText = _("""
-This is an example of scripted loadable module bundled in an extension.
-See more information in <a href="https://github.com/organization/projectname#SlicerGPT">module documentation</a>.
+This module integrates an intelligent chatbot designed to assist 3D Slicer users.
+You can ask questions in natural language about the software usage, Python scripting, extensions, or advanced features.
+<br><br>
+The chatbot uses a local knowledge base (RAG) including documentation, forum content, and source code to provide accurate answers.
+<br><br>
+See more information in the <a href="https://github.com/organization/projectname#SlicerGPT">module documentation</a>.
 """)
         # TODO: replace with organization, grant and thanks
         self.parent.acknowledgementText = _("""
-This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
-and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
+This plugin was initially developed during Yanisse FERHAOUI's final-year internship as part of an academic research project.
 """)
 
         # Additional initialization step after application startup is complete
@@ -146,6 +151,17 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """Called when the user opens the module the first time and the widget is initialized."""
         ScriptedLoadableModuleWidget.setup(self)
 
+        if not self.areDependenciesSatisfied():
+            error_msg = "Slicer PyTorch, langchain and transformers are required by this plugin.\n" \
+                        "Please click on the Download button to download and install these dependencies."
+            self.layout.addWidget(qt.QLabel(error_msg))
+            downloadDependenciesButton = qt.QPushButton("Download dependencies and restart")
+            downloadDependenciesButton.connect("clicked(bool)", self.downloadDependenciesAndRestart)
+            downloadDependenciesButton.setCheckable(False)
+            self.layout.addWidget(downloadDependenciesButton)
+            self.layout.addStretch()
+            return
+
         # Load widget from .ui file (created by Qt Designer).
         # Additional widgets can be instantiated manually and added to self.layout.
         uiWidget = slicer.util.loadUI(self.resourcePath("UI/SlicerGPT.ui"))
@@ -159,7 +175,12 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Create logic class. Logic implements all computations that should be possible to run
         # in batch mode, without a graphical user interface.
+
+        progressDialog = slicer.util.createProgressDialog(maximum=0)
+        progressDialog.labelText = "Downloading & launching model (The first time this action can take a while)"
         self.logic = SlicerGPTLogic()
+
+        progressDialog.close()
 
         # Connections
 
@@ -258,13 +279,62 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             message = {"role": "user", "content": text}
             dialogue = self.logic.process(message)
             self.ui.conversation.setText(dialogue)
+    
+    @staticmethod
+    def areDependenciesSatisfied():
+        from Scripts.PythonDependenciesManager import PythonDependencyChecker
+        return PythonDependencyChecker.areDependenciesSatisfied()
+    
+    @staticmethod
+    def downloadDependenciesAndRestart():
+        from Scripts.PythonDependenciesManager import PythonDependencyChecker
+        progressDialog = slicer.util.createProgressDialog(maximum=0)
+        extensionManager = slicer.app.extensionsManagerModel()
+
+        def downloadWithMetaData(extName):
+        # Method for downloading extensions prior to Slicer 5.0.3
+            meta_data = extensionManager.retrieveExtensionMetadataByName(extName)
+            if meta_data:
+                return extensionManager.downloadAndInstallExtension(meta_data["extension_id"])
+
+        def downloadWithName(extName):
+        # Direct extension download since Slicer 5.0.3
+            return extensionManager.downloadAndInstallExtensionByName(extName)
+
+        # Install Slicer extensions
+        downloadF = downloadWithName if hasattr(extensionManager,
+                                                "downloadAndInstallExtensionByName") else downloadWithMetaData
+
+        slicerExtensions = ["PyTorch"]
+        for slicerExt in slicerExtensions:
+            progressDialog.labelText = f"Installing the {slicerExt}\nSlicer extension"
+            downloadF(slicerExt)
+
+        PythonDependencyChecker.installDependenciesIfNeeded(progressDialog)
+        progressDialog.close()
+
+        # Restart if no extension failed to download. Otherwise warn the user about the failure.
+        failedDownload = [slicerExt for slicerExt in slicerExtensions if
+                        not extensionManager.isExtensionInstalled(slicerExt)]
+
+        if failedDownload:
+            failed_ext_list = "\n".join(failedDownload)
+            warning_msg = f"The download process failed install the following extensions : {failed_ext_list}" \
+                            f"\n\nPlease try to manually install them using Slicer's extension manager"
+            qt.QMessageBox.warning(None, "Failed to download extensions", warning_msg)
+        else:
+            slicer.app.restart()
+
             
 
 
 #
 # SlicerGPTLogic
 #
-
+from Scripts.VectorStoreManager import VectorStoreManager
+from Scripts.Model import Model
+import re
+from Scripts.Utils import extract_mrml_scene_as_text
 
 class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     """This class should implement all the actual
@@ -280,6 +350,14 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
         ScriptedLoadableModuleLogic.__init__(self)
         self.dialogue = []
+        self.chatbot = self.loadModel()
+
+    def loadModel(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        faiss_path = os.path.join(base_dir, "Data", "SlicerFAISS")
+        manager = VectorStoreManager(faiss_path)
+        chatbot = Model(manager=manager)
+        return chatbot
 
     def getParameterNode(self):
         return SlicerGPTParameterNode(super().getParameterNode())
@@ -291,13 +369,107 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         finalDialogue = []
         for message in self.dialogue:
             content = message["content"].replace('\n', '<br>')
-            if message["role"] == "system":
-                finalDialogue.append(f'<div style="text-align:left; margin: 5px;">SlicerGPT:<br>{content}</div>')
+            content = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', content)
+            if message["role"] == "assistant":
+                finalDialogue.append(f'<div style="text-align:left; margin: 5px;"><span style="color:red; font-weight:bold;">SlicerGPT:</span><br>{content}</div>')
             elif message["role"] == "user":
-                finalDialogue.append(f'<div style="text-align:right; margin: 5px;">You:<br>{content}</div>')
+                finalDialogue.append(f'<div style="text-align:right; margin: 5px;"><span style="color:blue; font-weight:bold;">You:</span><br>{content}</div>')
 
 
         return "\n\n".join(finalDialogue)
+
+    def list_nodes(self, filter_type="names", class_name=None, name=None, id=None):
+        """
+        List MRML nodes directly using the Slicer Python API.
+
+        Parameters:
+        - filter_type: specifies the type of information to retrieve ("names", "ids", or "properties").
+        - class_name: filter by class name (optional).
+        - name: filter by node name (optional).
+        - id: filter by node ID (optional).
+
+        Returns a dictionary with the node information.
+        """
+        try:
+            nodes = slicer.mrmlScene.GetNodes()  # Get all nodes in the MRML scene
+            result = {"nodes": []}
+
+            for node in nodes:
+                if filter_type == "names":
+                    # Collect node names
+                    result["nodes"].append(node.GetName())
+                elif filter_type == "ids":
+                    # Collect node IDs
+                    result["nodes"].append(node.GetID())
+                elif filter_type == "properties":
+                    # Collect node properties
+                    node_properties = {}
+                    node_properties["name"] = node.GetName()
+                    node_properties["id"] = node.GetID()
+                    # Add more properties as needed
+                    result["nodes"].append({node.GetName(): node_properties})
+
+                # Apply filtering based on class_name, name, or id
+                if class_name and node.GetClassName() != class_name:
+                    continue
+                if name and node.GetName() != name:
+                    continue
+                if id and node.GetID() != id:
+                    continue
+
+            return result
+
+        except Exception as e:
+            return {"error": f"Node listing failed: {str(e)}"}
+
+    def execute_python_code(self, code: str) -> dict:
+        """
+        Execute Python code directly in 3D Slicer.
+
+        Parameters:
+        code (str): The Python code to execute.
+
+        The code parameter is a string containing the Python code to be executed in 3D Slicer's Python environment.
+        The code should be executable by Python's `exec()` function. To get return values, the code should assign the result to a variable named `__execResult`.
+
+        Examples:
+        - Create a sphere model: 
+        execute_python_code_locally("sphere = slicer.vtkMRMLModelNode(); slicer.mrmlScene.AddNode(sphere); sphere.SetName('MySphere'); __execResult = sphere.GetID()")
+        - Get the number of nodes in the current scene: 
+        execute_python_code_locally("__execResult = len(slicer.mrmlScene.GetNodes())")
+        - Calculate 1+1: 
+        execute_python_code_locally("__execResult = 1 + 1")
+
+        Returns:
+            dict: A dictionary containing the execution result.
+
+            If the code execution is successful, the dictionary will contain the following key-value pairs:
+            - "success": True
+            - "message": The result of the code execution. If the code assigns the result to `__execResult`, the value of `__execResult` is returned, otherwise it returns empty.
+
+            If the code execution fails, the dictionary will contain the following key-value pairs:
+            - "success": False
+            - "message": A string containing an error message indicating the cause of the failure.
+        """
+        try:
+            # Prepare the context to execute the code
+            local_globals = globals().copy()
+            local_globals['__execResult'] = None
+
+            # Execute the Python code in the local environment
+            exec(code, local_globals)
+            
+            # Check if the code has set __execResult
+            result = local_globals.get('__execResult', None)
+            
+            if result is not None:
+                return {"success": True, "message": result}
+            else:
+                return {"success": True, "message": "Code executed without setting __execResult."}
+
+        except Exception as e:
+            return {"success": False, "message": f"Execution failed: {str(e)}"}
+
 
     def process(self, message) -> str:
         """
@@ -312,16 +484,20 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
 
         self.dialogue.append(message)
 
-        # Process message -> tokenizer.apply_chat_template(message) & model.generate
+        mrml_scene = extract_mrml_scene_as_text()
+        
+        response = self.chatbot.generate_response(message["content"], mrml_scene)
 
-        self.dialogue.append({"role": "system", "content": "Oui chakal j'ai vu ton message"})
+        self.dialogue.append({"role": "assistant", "content": response})
 
         stopTime = time.time()
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
 
         newDialogue = self.formatDialogue()
+        
 
         return newDialogue
+
 
 
 #
