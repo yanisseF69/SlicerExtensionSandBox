@@ -30,8 +30,6 @@ class VectorStoreManager:
         if not index_dirs:
             raise ValueError(f"No FAISS indexes found in {self.index_root}")
 
-        print(f"Loading and merging {len(index_dirs)} FAISS indexes...")
-
         # Load the first index
         self.index = FAISS.load_local(index_dirs[0], self.embeddings, allow_dangerous_deserialization=True)
 

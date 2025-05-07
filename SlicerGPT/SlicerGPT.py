@@ -483,10 +483,8 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         logging.info("Processing started")
 
         self.dialogue.append(message)
-
-        mrml_scene = extract_mrml_scene_as_text()
         
-        response = self.chatbot.generate_response(message["content"], mrml_scene)
+        response = self.chatbot.generate_response(message["content"])
 
         self.dialogue.append({"role": "assistant", "content": response})
 

@@ -1,3 +1,5 @@
+from Scripts.Utils import extract_mrml_scene_as_text
+
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import slicer
 import os
@@ -17,11 +19,12 @@ class Model:
         self.enable_thinking = False
 
 
-    def generate_response(self, user_input, mrml_scene):
+    def generate_response(self, user_input):
         
 
         docs = self.manager.search(user_input) # Récupère les 3 documents les plus pertinents
-        context = "Here is the whole context I found : " + " ".join([doc.page_content for doc in docs]) + f"\n\nHere is the MRML scene:\n{mrml_scene}\n\nAnd here is the user request, please be the most accurate and do not make up the answer if you don't know: "
+        mrml_scene = extract_mrml_scene_as_text()
+        context = "Here is the whole context I found : " + " ".join([doc.page_content for doc in docs]) + f"\n\nHere is the MRML scene in case of you need to look at the scene:\n{mrml_scene}\n\nUse the following pieces of context and your knowledge to answer the question at the end. If you don't know the answer, just say that you don't know, don't try to make up an answer, try to guide the user with all the tools available on 3D Slicer.\nAnd here is the user request, please be the most accurate and answer like if this was the user who directly asked this question to you : "
         messages = [{"role": "user", "content": context + user_input}]
 
         text = self.tokenizer.apply_chat_template(
