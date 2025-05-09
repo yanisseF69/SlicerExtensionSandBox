@@ -24,7 +24,23 @@ class Model:
 
         docs = self.manager.search(user_input) # Récupère les 3 documents les plus pertinents
         mrml_scene = extract_mrml_scene_as_text()
-        context = "Here is the whole context I found : " + " ".join([doc.page_content for doc in docs]) + f"\n\nHere is the MRML scene in case of you need to look at the scene:\n{mrml_scene}\n\nUse the following pieces of context and your knowledge to answer the question at the end. If you don't know the answer, just say that you don't know, don't try to make up an answer, try to guide the user with all the tools available on 3D Slicer.\nAnd here is the user request, please be the most accurate and answer like if this was the user who directly asked this question to you : "
+        context = (
+            "You are a helpful and knowledgeable assistant, an expert in the 3D Slicer software. "
+            "Your goal is to answer user questions as precisely and reliably as possible, using only verified information. "
+            "Below are context documents retrieved from the Slicer knowledge base, followed by the MRML scene for reference. "
+            "Do not invent answers. If the context is insufficient, say 'I don't know' and suggest relevant tools or documentation in 3D Slicer that could help.\n\n"
+            
+            "Context documents:\n"
+            + "\n---\n".join([doc.page_content for doc in docs]) + "\n\n"
+            
+            "MRML Scene:\n"
+            + mrml_scene + "\n\n"
+
+            "Now, based on this context and your internal knowledge of 3D Slicer, answer the following question as if you were a real expert talking to the user. "
+            "Be concise, accurate, and do not make up facts.\n\n"
+            
+            f"User question: {user_input}"
+        )
         messages = [{"role": "user", "content": context + user_input}]
 
         text = self.tokenizer.apply_chat_template(
