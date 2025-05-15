@@ -1,22 +1,29 @@
 from Scripts.Utils import extract_mrml_scene_as_text
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from llama_cpp import Llama
 import slicer
-import os
-os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 FAISS_DIR = "./SlicerFAISS"
 
 class Model:
-    def __init__(self, manager, model_name="Qwen/Qwen3-0.6B"):
+    def __init__(self, manager, model_name="Qwen/Qwen3-0.6B-GGUF", file_name="Qwen3-0.6B-Q8_0.gguf"):
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(model_name)
+        self.llm = Llama.from_pretrained(
+            repo_id=model_name,
+            filename=file_name,
+            verbose=True,
+            n_ctx=40960,
+            n_gpu_layers=30,
+            n_threads=4
+        )
         self.manager = manager
-        # self.history = [{"role": "system", "content": f"You are a powerful and helpful AI, a '3D Slicer' software expert, and a great computer scientist with a huge knowlege on medical images. Use the following pieces of context to answer the question at the end. If you don't know the answer, just say that you don't know, don't try to make up an answer, try to guide the user with all the tools available on 3D Slicer."}]
+        self.history = [{"role": "system", "content": f"You are a powerful and helpful AI, a '3D Slicer' software expert, and a great computer scientist with a huge knowlege on medical images. Use the following pieces of context to answer the question at the end. If you don't know the answer, just say that you don't know, don't try to make up an answer, try to guide the user with all the tools available on 3D Slicer."}]
         self.history = []
         self.has_history = True
         self.enable_thinking = False
+
+    def think(self):
+        return " /think" if self.enable_thinking is True else " /no_think"
 
 
     def generate_response(self, user_input):
@@ -28,7 +35,8 @@ class Model:
             "You are a helpful and knowledgeable assistant, an expert in the 3D Slicer software. "
             "Your goal is to answer user questions as precisely and reliably as possible, using only verified information. "
             "Below are context documents retrieved from the Slicer knowledge base, followed by the MRML scene for reference. "
-            "Do not invent answers. If the context is insufficient, say 'I don't know' and suggest relevant tools or documentation in 3D Slicer that could help.\n\n"
+            "Do not invent answers. If the context is insufficient, say 'I don't know' and suggest relevant tools or documentation in 3D Slicer that could help."
+            "You can recommend the user to read the 3D Slicer documentation, forums in https://discourse.slicer.org, or tutorials in https://training.slicer.org/\n\n"
             
             "Context documents:\n"
             + "\n---\n".join([doc.page_content for doc in docs]) + "\n\n"
@@ -36,23 +44,21 @@ class Model:
             "MRML Scene:\n"
             + mrml_scene + "\n\n"
 
-            "Now, based on this context and your internal knowledge of 3D Slicer, answer the following question as if you were a real expert talking to the user. "
+            "Now, based on this context, the last messages sent and your internal knowledge of 3D Slicer, answer the following question as if you were a real expert talking to the user. "
             "Be concise, accurate, and do not make up facts.\n\n"
             
             f"User question: {user_input}"
         )
-        messages = [{"role": "user", "content": context + user_input}]
 
-        text = self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=self.enable_thinking
+        print(self.think())
+        
+        messages = self.history + [{"role": "user", "content": context + user_input + self.think()}]
+
+        resp = self.llm.create_chat_completion(
+            messages = messages,
         )
 
-        inputs = self.tokenizer(text, return_tensors="pt")
-        response_ids = self.model.generate(**inputs, max_new_tokens=32768)[0][len(inputs.input_ids[0]):].tolist()
-        response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
+        response = resp["choices"][0]["message"]["content"]
 
         # Update history
         self.history.append({"role": "user", "content": user_input})

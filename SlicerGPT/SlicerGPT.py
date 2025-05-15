@@ -18,6 +18,7 @@ from slicer import vtkMRMLScalarVolumeNode
 
 import qt
 
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 #
 # SlicerGPT
@@ -192,6 +193,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Buttons
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
+        self.ui.thinkBox.toggled.connect(self.onThinkBoxToggled)
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -230,6 +232,10 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.applyButton.enabled = True
         else:
             self.ui.applyButton.enabled = False
+
+    def onThinkBoxToggled(self, checked):
+        self.logic.setThinking(checked)
+        print(checked)
 
 
     def initializeParameterNode(self) -> None:
@@ -289,41 +295,41 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def downloadDependenciesAndRestart():
         from Scripts.PythonDependenciesManager import PythonDependencyChecker
         progressDialog = slicer.util.createProgressDialog(maximum=0)
-        extensionManager = slicer.app.extensionsManagerModel()
+        # extensionManager = slicer.app.extensionsManagerModel()
 
-        def downloadWithMetaData(extName):
-        # Method for downloading extensions prior to Slicer 5.0.3
-            meta_data = extensionManager.retrieveExtensionMetadataByName(extName)
-            if meta_data:
-                return extensionManager.downloadAndInstallExtension(meta_data["extension_id"])
+        # def downloadWithMetaData(extName):
+        # # Method for downloading extensions prior to Slicer 5.0.3
+        #     meta_data = extensionManager.retrieveExtensionMetadataByName(extName)
+        #     if meta_data:
+        #         return extensionManager.downloadAndInstallExtension(meta_data["extension_id"])
 
-        def downloadWithName(extName):
-        # Direct extension download since Slicer 5.0.3
-            return extensionManager.downloadAndInstallExtensionByName(extName)
+        # def downloadWithName(extName):
+        # # Direct extension download since Slicer 5.0.3
+        #     return extensionManager.downloadAndInstallExtensionByName(extName)
 
         # Install Slicer extensions
-        downloadF = downloadWithName if hasattr(extensionManager,
-                                                "downloadAndInstallExtensionByName") else downloadWithMetaData
+        # downloadF = downloadWithName if hasattr(extensionManager,
+        #                                         "downloadAndInstallExtensionByName") else downloadWithMetaData
 
-        slicerExtensions = ["PyTorch"]
-        for slicerExt in slicerExtensions:
-            progressDialog.labelText = f"Installing the {slicerExt}\nSlicer extension"
-            downloadF(slicerExt)
+        # slicerExtensions = ["PyTorch"]
+        # for slicerExt in slicerExtensions:
+        #     progressDialog.labelText = f"Installing the {slicerExt}\nSlicer extension"
+        #     downloadF(slicerExt)
 
         PythonDependencyChecker.installDependenciesIfNeeded(progressDialog)
         progressDialog.close()
 
         # Restart if no extension failed to download. Otherwise warn the user about the failure.
-        failedDownload = [slicerExt for slicerExt in slicerExtensions if
-                        not extensionManager.isExtensionInstalled(slicerExt)]
+        # failedDownload = [slicerExt for slicerExt in slicerExtensions if
+        #                 not extensionManager.isExtensionInstalled(slicerExt)]
 
-        if failedDownload:
-            failed_ext_list = "\n".join(failedDownload)
-            warning_msg = f"The download process failed install the following extensions : {failed_ext_list}" \
-                            f"\n\nPlease try to manually install them using Slicer's extension manager"
-            qt.QMessageBox.warning(None, "Failed to download extensions", warning_msg)
-        else:
-            slicer.app.restart()
+        # if failedDownload:
+        #     failed_ext_list = "\n".join(failedDownload)
+        #     warning_msg = f"The download process failed install the following extensions : {failed_ext_list}" \
+        #                     f"\n\nPlease try to manually install them using Slicer's extension manager"
+        #     qt.QMessageBox.warning(None, "Failed to download extensions", warning_msg)
+        # else:
+        slicer.app.restart()
 
             
 
@@ -362,6 +368,12 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     def getParameterNode(self):
         return SlicerGPTParameterNode(super().getParameterNode())
     
+    def setThinking(self, think):
+        """
+        Change the chatbot thinking mode.
+        """
+        self.chatbot.enable_thinking = think
+    
     def formatDialogue(self) -> str:
         """
         Return the formatted text of the dialogue, it will be displayed in the conversation widget.
@@ -370,6 +382,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         for message in self.dialogue:
             content = message["content"].replace('\n', '<br>')
             content = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', content)
+            content = re.sub(r'<think>(.+?)</think>', r'<i>\1</i>', content, flags=re.DOTALL)
             if message["role"] == "assistant":
                 finalDialogue.append(f'<div style="text-align:left; margin: 5px;"><span style="color:red; font-weight:bold;">SlicerGPT:</span><br>{content}</div>')
             elif message["role"] == "user":
