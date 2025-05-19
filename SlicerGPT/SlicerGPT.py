@@ -200,6 +200,11 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
+        self.logic.proc.terminate()
+        self.logic.proc.waitForFinished(3000)  # Attend 3 sec max
+        if self.logic.proc.state() != qt.QProcess.NotRunning:
+            self.logic.proc.kill()
+
         # self.removeObservers()
 
     def enter(self) -> None:
@@ -337,10 +342,10 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 #
 # SlicerGPTLogic
 #
-from Scripts.VectorStoreManager import VectorStoreManager
-from Scripts.Model import Model
+
+import requests
+import sys
 import re
-from Scripts.Utils import extract_mrml_scene_as_text
 
 class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     """This class should implement all the actual
@@ -356,17 +361,35 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
         ScriptedLoadableModuleLogic.__init__(self)
         self.dialogue = []
-        self.chatbot = self.loadModel()
+        self.proc = qt.QProcess()
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if base_dir not in sys.path:
+            sys.path.append(base_dir)
+        server_path = os.path.join(base_dir, "SlicerGPT", "Scripts", "LocalServer.py")
+        self.proc.setProgram("pythonSlicer")
+        self.proc.setArguments([server_path])
 
-    def loadModel(self):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        faiss_path = os.path.join(base_dir, "Data", "SlicerFAISS")
-        manager = VectorStoreManager(faiss_path)
-        chatbot = Model(manager=manager)
-        return chatbot
-
+        self.proc.readyReadStandardOutput.connect(self.handle_stdout)
+        self.proc.readyReadStandardError.connect(self.handle_stderr)
+        self.start()
+        self.proc.started.connect(lambda: print("[INFO] Server started"))
+        self.proc.finished.connect(lambda: print("[INFO] Server stopped"))
+        
     def getParameterNode(self):
         return SlicerGPTParameterNode(super().getParameterNode())
+    
+    def start(self):
+        print("[INFO] Starting process...")
+        self.proc.start()
+
+    def handle_stdout(self):
+        output = self.proc.readAllStandardOutput().data().decode()
+        print("[STDOUT]", output)
+
+    def handle_stderr(self):
+        raw = self.proc.readAllStandardError().data()
+        error = raw.decode(errors="replace")
+        print("[STDERR]", error)
     
     def setThinking(self, think):
         """
@@ -404,10 +427,13 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         logging.info("Processing started")
 
         self.dialogue.append(message)
-        
-        response = self.chatbot.generate_response(message["content"])
 
-        self.dialogue.append({"role": "assistant", "content": response})
+        response = requests.post("http://127.0.0.1:81/generate", json=message)
+        print(response)
+        
+        # response = self.chatbot.generate_response(message["content"])
+
+        self.dialogue.append({"role": "assistant", "content": "réponse OK"})
 
         stopTime = time.time()
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")

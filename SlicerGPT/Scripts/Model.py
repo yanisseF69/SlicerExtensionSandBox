@@ -1,4 +1,4 @@
-from Scripts.Utils import extract_mrml_scene_as_text
+from Utils import extract_mrml_scene_as_text
 
 from llama_cpp import Llama
 import slicer
