@@ -29,6 +29,7 @@ class PythonDependencyChecker(object):
     progressDialog.labelText = "Installing PyTorch"
 
     os.environ["CMAKE_ARGS"] = "-DLLAMA_CUBLAS=on"
+    os.environ["FORCE_CMAKE"] = "1"
 
     for dep in ["llama-cpp-python", "fastapi", "uvicorn", "langchain_huggingface", "langchain_community", "hf-xet", "faiss-cpu"]:
       progressDialog.labelText = "Installing " + dep

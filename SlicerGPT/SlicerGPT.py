@@ -180,6 +180,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         progressDialog = slicer.util.createProgressDialog(maximum=0)
         progressDialog.labelText = "Downloading & launching model (The first time this action can take a while)"
         self.logic = SlicerGPTLogic()
+        self.logic.widget = self
 
         progressDialog.close()
 
@@ -200,12 +201,65 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
-        self.logic.proc.terminate()
-        self.logic.proc.waitForFinished(3000)  # Attend 3 sec max
-        if self.logic.proc.state() != qt.QProcess.NotRunning:
-            self.logic.proc.kill()
-
-        # self.removeObservers()
+        logging.info("Cleaning up SlicerGPT module")
+        
+        if hasattr(self, "logic") and hasattr(self.logic, "proc"):
+            # Essayer d'abord d'arrêter le serveur en douceur via une requête HTTP
+            try:
+                import requests
+                # Timeout court pour ne pas bloquer la fermeture
+                requests.get("http://127.0.0.1:81/shutdown", timeout=1.0)
+                logging.info("Sent shutdown request to server")
+            except:
+                # Ignorer les erreurs, nous allons forcer l'arrêt de toute façon
+                pass
+            
+            # Vérifier si le processus est en cours d'exécution
+            if self.logic.proc.state() == qt.QProcess.Running:
+                logging.info("Terminating server process")
+                
+                # Tenter d'abord un arrêt propre
+                self.logic.proc.terminate()
+                
+                # Attendre un peu pour qu'il s'arrête
+                if not self.logic.proc.waitForFinished(3000):  # 3 secondes
+                    logging.warning("Server did not terminate gracefully, killing process")
+                    self.logic.proc.kill()
+                    
+                    # Attendre à nouveau pour confirmer
+                    if not self.logic.proc.waitForFinished(2000):  # 2 secondes supplémentaires
+                        logging.error("Failed to kill server process")
+                    else:
+                        logging.info("Server process killed")
+                else:
+                    logging.info("Server process terminated gracefully")
+                    
+                # Nettoyage supplémentaire
+                try:
+                    pid = self.logic.proc.processId()
+                    if pid > 0:
+                        import os, signal
+                        try:
+                            os.kill(pid, signal.SIGTERM)
+                            logging.info(f"Sent SIGTERM to process {pid}")
+                        except:
+                            pass
+                except:
+                    pass
+            
+            # S'assurer que tous les pipes sont fermés
+            self.logic.proc.closeReadChannel(qt.QProcess.StandardOutput)
+            self.logic.proc.closeReadChannel(qt.QProcess.StandardError)
+            self.logic.proc.closeWriteChannel()
+            
+            logging.info("Process cleanup completed")
+        
+        # Important : supprimer la référence au processus
+        if hasattr(self, "logic"):
+            self.logic.proc = None
+        
+        # Déconnexion de tous les signaux et observers
+        self.removeObservers()
 
     def enter(self) -> None:
         """Called each time the user opens this module."""
@@ -288,8 +342,18 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             text = self.ui.prompt.toPlainText()
             self.ui.prompt.clear()
             message = {"role": "user", "content": text}
+            self.ui.applyButton.enabled = False
             dialogue = self.logic.process(message)
             self.ui.conversation.setText(dialogue)
+
+    def updateConversation(self, dialogue_text):
+        """Met à jour l'interface utilisateur avec le nouveau dialogue.
+        Cette méthode sera appelée par la logique quand une réponse asynchrone est reçue.
+        """
+        self.ui.conversation.setText(dialogue_text)
+        
+        # Réactiver le bouton d'envoi
+        self.ui.applyButton.enabled = bool(self.ui.prompt.toPlainText())
     
     @staticmethod
     def areDependenciesSatisfied():
@@ -346,6 +410,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 import requests
 import sys
 import re
+from Scripts.Utils import extract_mrml_scene_as_text
 
 class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     """This class should implement all the actual
@@ -374,6 +439,14 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         self.start()
         self.proc.started.connect(lambda: print("[INFO] Server started"))
         self.proc.finished.connect(lambda: print("[INFO] Server stopped"))
+
+        from Scripts.AsyncRequest import AsyncRequest
+        self.async_request = AsyncRequest()
+        self.async_request.requestFinished.connect(self.handleResponse)
+        self.async_request.requestFailed.connect(self.handleError)
+
+        self.widget = None
+
         
     def getParameterNode(self):
         return SlicerGPTParameterNode(super().getParameterNode())
@@ -390,12 +463,32 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         raw = self.proc.readAllStandardError().data()
         error = raw.decode(errors="replace")
         print("[STDERR]", error)
+
+    def handleResponse(self, response_data):
+        """Gère la réponse reçue de façon asynchrone"""
+        # Ajouter la réponse à notre dialogue
+        print(response_data)
+        self.dialogue.pop()
+        self.dialogue.append({"role": "assistant", "content": response_data})
+        
+        # Mettre à jour l'interface utilisateur
+        if self.widget:
+            self.widget.updateConversation(self.formatDialogue())
+            
+    def handleError(self, error_message):
+        """Gère les erreurs lors de l'appel asynchrone"""
+        # Ajouter un message d'erreur à notre dialogue
+        self.dialogue.append({"role": "assistant", "content": f"Erreur de communication avec le serveur: {error_message}"})
+        
+        # Mettre à jour l'interface utilisateur
+        if self.widget:
+            self.widget.updateConversation(self.formatDialogue())
     
     def setThinking(self, think):
         """
         Change the chatbot thinking mode.
         """
-        self.chatbot.enable_thinking = think
+        requests.post("http://127.0.0.1:81/setThink", json={"think": think})
     
     def formatDialogue(self) -> str:
         """
@@ -427,21 +520,20 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         logging.info("Processing started")
 
         self.dialogue.append(message)
-
-        response = requests.post("http://127.0.0.1:81/generate", json=message)
-        print(response)
+        temp_message = {"role": "assistant", "content": "Traitement en cours..."}
+        self.dialogue.append(temp_message)
         
-        # response = self.chatbot.generate_response(message["content"])
-
-        self.dialogue.append({"role": "assistant", "content": "réponse OK"})
-
-        stopTime = time.time()
-        logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
-
-        newDialogue = self.formatDialogue()
+        # Préparer le message avec les informations de la scène MRML
+        message["mrml_scene"] = extract_mrml_scene_as_text()
         
-
-        return newDialogue
+        # Mise à jour initiale de l'interface avant l'envoi
+        formatted_dialogue = self.formatDialogue()
+        
+        # Lancer la requête asynchrone
+        self.async_request.post("http://127.0.0.1:81/generate", message)
+        
+        # Retourner le dialogue actuel avec l'indicateur de chargement
+        return formatted_dialogue
 
 
 

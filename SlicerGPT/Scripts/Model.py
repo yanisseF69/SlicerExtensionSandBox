@@ -6,14 +6,14 @@ import slicer
 FAISS_DIR = "./SlicerFAISS"
 
 class Model:
-    def __init__(self, manager, model_name="Qwen/Qwen3-0.6B-GGUF", file_name="Qwen3-0.6B-Q8_0.gguf"):
+    def __init__(self, manager, model_name="unsloth/Qwen3-0.6B-GGUF", file_name="Qwen3-0.6B-Q4_0.gguf"):
 
         self.llm = Llama.from_pretrained(
             repo_id=model_name,
             filename=file_name,
             verbose=True,
-            n_ctx=40960,
-            n_gpu_layers=30,
+            n_ctx=8192,
+            n_gpu_layers=-1,
             n_threads=4
         )
         self.manager = manager
@@ -26,11 +26,10 @@ class Model:
         return " /think" if self.enable_thinking is True else " /no_think"
 
 
-    def generate_response(self, user_input):
+    def generate_response(self, user_input, mrml_scene):
         
 
-        docs = self.manager.search(user_input) # Récupère les 3 documents les plus pertinents
-        mrml_scene = extract_mrml_scene_as_text()
+        docs = self.manager.hybrid_search(user_input) # Récupère les 3 documents les plus pertinents
         context = (
             "You are a helpful and knowledgeable assistant, an expert in the 3D Slicer software. "
             "Your goal is to answer user questions as precisely and reliably as possible, using only verified information. "
@@ -58,7 +57,7 @@ class Model:
             messages = messages,
         )
 
-        response = resp["choices"][0]["message"]["content"]
+        response = context + "\n\n" + user_input + "\n\n" + resp["choices"][0]["message"]["content"]
 
         # Update history
         self.history.append({"role": "user", "content": user_input})
