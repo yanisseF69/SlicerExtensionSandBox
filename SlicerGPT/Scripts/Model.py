@@ -18,7 +18,7 @@ class Model:
         )
         self.manager = manager
         self.history = [{"role": "system", "content": f"You are a powerful and helpful AI, a '3D Slicer' software expert, and a great computer scientist with a huge knowlege on medical images. Use the following pieces of context to answer the question at the end. If you don't know the answer, just say that you don't know, don't try to make up an answer, try to guide the user with all the tools available on 3D Slicer."}]
-        self.history = []
+        # self.history = []
         self.has_history = True
         self.enable_thinking = False
 
@@ -29,23 +29,27 @@ class Model:
     def generate_response(self, user_input, mrml_scene):
         
 
-        docs = self.manager.hybrid_search(user_input) # Récupère les 3 documents les plus pertinents
+        docs = self.manager.search(user_input) # Récupère les 3 documents les plus pertinents
         context = (
-            "You are a helpful and knowledgeable assistant, an expert in the 3D Slicer software. "
-            "Your goal is to answer user questions as precisely and reliably as possible, using only verified information. "
-            "Below are context documents retrieved from the Slicer knowledge base, followed by the MRML scene for reference. "
-            "Do not invent answers. If the context is insufficient, say 'I don't know' and suggest relevant tools or documentation in 3D Slicer that could help."
-            "You can recommend the user to read the 3D Slicer documentation, forums in https://discourse.slicer.org, or tutorials in https://training.slicer.org/\n\n"
-            
+            "You are a helpful and knowledgeable assistant specialized in 3D Slicer. "
+            "Your role is to provide clear, correct, and concise answers to user questions using only verified information. "
+            "Avoid speculation: if the context is incomplete, reply 'I don't know' and guide the user to appropriate resources. "
+            "You can recommend official 3D Slicer documentation (https://slicer.readthedocs.io), tutorials (https://training.slicer.org), "
+            "or the community forum (https://discourse.slicer.org).\n\n"
+
+            "Use the following retrieved context documents and MRML scene only to support your answer.\n\n"
+
             "Context documents:\n"
             + "\n---\n".join([doc.page_content for doc in docs]) + "\n\n"
-            
+
             "MRML Scene:\n"
             + mrml_scene + "\n\n"
 
-            "Now, based on this context, the last messages sent and your internal knowledge of 3D Slicer, answer the following question as if you were a real expert talking to the user. "
-            "Be concise, accurate, and do not make up facts.\n\n"
-            
+            "Now, based on this context, the recent conversation, and your internal knowledge of 3D Slicer, "
+            "answer the user's question as a real 3D Slicer expert would. "
+            "Be technically accurate, easy to understand, and do not make up facts. "
+            "Prefer a minimal working Python code snippet if the question involves scripting.\n\n"
+
             f"User question: {user_input}"
         )
 
