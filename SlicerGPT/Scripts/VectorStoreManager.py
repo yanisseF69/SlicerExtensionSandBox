@@ -38,7 +38,7 @@ class VectorStoreManager:
             sub_index = FAISS.load_local(sub_index_dir, self.embeddings, allow_dangerous_deserialization=True)
             self.index.merge_from(sub_index)
 
-    def search(self, query: str, k: int = 3):
+    def search(self, query: str, k: int = 5):
         """
         Perform a similarity search on the merged index.
 
@@ -66,9 +66,8 @@ class VectorStoreManager:
         print(f"Merged index saved to: {path}")
 
 if __name__ == "__main__":
-    manager = VectorStoreManager("./SlicerFAISS/")
-    manager.load_and_merge_indexes()
+    manager = VectorStoreManager("SlicerGPT/Data/SlicerFAISS/")
 
-    results = manager.search("How to write a scripted module in 3D Slicer?", k=3)
+    results = manager.search("Hey can you write python code who draws a red sphere with 80cm diameter ?", k=5)
     for doc in results:
         print(doc.page_content)

@@ -434,8 +434,8 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         if base_dir not in sys.path:
             sys.path.append(base_dir)
         server_path = os.path.join(base_dir, "SlicerGPT", "Scripts", "LocalServer.py")
-        self.proc.setProgram("Slicer")
-        self.proc.setArguments(["--no-main-window", "--python-script", server_path])
+        self.proc.setProgram("PythonSlicer")
+        self.proc.setArguments([server_path])
 
         self.proc.readyReadStandardOutput.connect(self.handle_stdout)
         self.proc.readyReadStandardError.connect(self.handle_stderr)

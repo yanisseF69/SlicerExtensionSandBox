@@ -2,6 +2,10 @@ from Utils import extract_mrml_scene_as_text
 
 from llama_cpp import Llama
 import slicer
+import os
+import math
+
+num_cores = os.cpu_count()
 
 FAISS_DIR = "./SlicerFAISS"
 
@@ -12,12 +16,22 @@ class Model:
             repo_id=model_name,
             filename=file_name,
             verbose=True,
-            n_ctx=8192,
+            n_ctx=16384,
             n_gpu_layers=-1,
-            n_threads=8
+            n_threads=math.ceil(num_cores/2)
         )
+        print(f"{math.ceil(num_cores/2)} thread instanciated.")
         self.manager = manager
-        # self.history = [{"role": "system", "content": f"You are a powerful and helpful AI, a '3D Slicer' software expert, and a great computer scientist with a huge knowlege on medical images. Use the following pieces of context to answer the question at the end. If you don't know the answer, just say that you don't know, don't try to make up an answer, try to guide the user with all the tools available on 3D Slicer."}]
+        self.system_prompt = [{
+            "role": "system",
+            "content":
+                "You are a helpful and knowledgeable assistant specialized in 3D Slicer. "
+                "Your role is to provide clear, correct, and concise answers to user questions using only verified information. "
+                "Avoid speculation: if the context is incomplete, reply 'I don't know' and guide the user to appropriate resources. "
+                "You can recommend official 3D Slicer documentation (https://slicer.readthedocs.io), tutorials (https://training.slicer.org), "
+                "or the community forum (https://discourse.slicer.org). "
+                "Prefer a minimal working Python code snippet if the question involves scripting."
+        }]
         self.history = []
         self.has_history = True
         self.enable_thinking = False
@@ -31,29 +45,16 @@ class Model:
 
         docs = self.manager.search(user_input) # Récupère les 3 documents les plus pertinents
         context = (
-            "You are a helpful and knowledgeable assistant specialized in 3D Slicer. "
-            "Your role is to provide clear, correct, and concise answers to user questions using only verified information. "
-            "Avoid speculation: if the context is incomplete, reply 'I don't know' and guide the user to appropriate resources. "
-            "You can recommend official 3D Slicer documentation (https://slicer.readthedocs.io), tutorials (https://training.slicer.org), "
-            "or the community forum (https://discourse.slicer.org).\n\n"
-
-            "Use the following retrieved context documents and MRML scene only to support your answer.\n\n"
-
             "Context documents:\n"
             + "\n---\n".join([doc.page_content for doc in docs]) + "\n\n"
 
             "MRML Scene:\n"
             + mrml_scene + "\n\n"
 
-            "Now, based on this context, the recent conversation, and your internal knowledge of 3D Slicer, "
-            "answer the user's question as a real 3D Slicer expert would. "
-            "Be technically accurate, easy to understand, and do not make up facts. "
-            "Prefer a minimal working Python code snippet if the question involves scripting.\n\n"
-
             f"User question: {user_input}"
         )
         
-        messages = self.history + [{"role": "user", "content": context + user_input + self.think()}]
+        messages = self.history + self.system_prompt + [{"role": "user", "content": context + user_input + self.think()}]
 
         resp = self.llm.create_chat_completion(
             messages = messages,
@@ -65,7 +66,7 @@ class Model:
         self.history.append({"role": "user", "content": user_input})
         self.history.append({"role": "assistant", "content": response})
 
-        return response
+        return context + response
 
 # if __name__ == "__main__":
 
