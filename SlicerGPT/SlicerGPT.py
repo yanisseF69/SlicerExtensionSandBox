@@ -184,6 +184,8 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         progressDialog.close()
 
+        self.applyButtonEnabled = True
+
         # Connections
 
         # These connections ensure that we update parameter node when scene is closed
@@ -287,10 +289,11 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onPromptTextChanged(self) -> None:
         """Called when the prompt text is changed."""
-        if self.ui.prompt.toPlainText():
-            self.ui.applyButton.enabled = True
-        else:
-            self.ui.applyButton.enabled = False
+        if self.applyButtonEnabled:
+            if self.ui.prompt.toPlainText():
+                self.ui.applyButton.enabled = True
+            else:
+                self.ui.applyButton.enabled = False
 
     def onThinkBoxToggled(self, checked):
         self.logic.setThinking(checked)
@@ -353,7 +356,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.conversation.setText(dialogue_text)
         
         # Réactiver le bouton d'envoi
-        self.ui.applyButton.enabled = bool(self.ui.prompt.toPlainText())
+        self.applyButtonEnabled = True
     
     @staticmethod
     def areDependenciesSatisfied():
@@ -431,8 +434,8 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         if base_dir not in sys.path:
             sys.path.append(base_dir)
         server_path = os.path.join(base_dir, "SlicerGPT", "Scripts", "LocalServer.py")
-        self.proc.setProgram("pythonSlicer")
-        self.proc.setArguments([server_path])
+        self.proc.setProgram("Slicer")
+        self.proc.setArguments(["--no-main-window", "--python-script", server_path])
 
         self.proc.readyReadStandardOutput.connect(self.handle_stdout)
         self.proc.readyReadStandardError.connect(self.handle_stderr)

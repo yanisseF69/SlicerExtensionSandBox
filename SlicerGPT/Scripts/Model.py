@@ -14,11 +14,11 @@ class Model:
             verbose=True,
             n_ctx=8192,
             n_gpu_layers=-1,
-            n_threads=4
+            n_threads=8
         )
         self.manager = manager
-        self.history = [{"role": "system", "content": f"You are a powerful and helpful AI, a '3D Slicer' software expert, and a great computer scientist with a huge knowlege on medical images. Use the following pieces of context to answer the question at the end. If you don't know the answer, just say that you don't know, don't try to make up an answer, try to guide the user with all the tools available on 3D Slicer."}]
-        # self.history = []
+        # self.history = [{"role": "system", "content": f"You are a powerful and helpful AI, a '3D Slicer' software expert, and a great computer scientist with a huge knowlege on medical images. Use the following pieces of context to answer the question at the end. If you don't know the answer, just say that you don't know, don't try to make up an answer, try to guide the user with all the tools available on 3D Slicer."}]
+        self.history = []
         self.has_history = True
         self.enable_thinking = False
 
@@ -52,8 +52,6 @@ class Model:
 
             f"User question: {user_input}"
         )
-
-        print(self.think())
         
         messages = self.history + [{"role": "user", "content": context + user_input + self.think()}]
 
@@ -61,7 +59,7 @@ class Model:
             messages = messages,
         )
 
-        response = context + "\n\n" + user_input + "\n\n" + resp["choices"][0]["message"]["content"]
+        response = resp["choices"][0]["message"]["content"]
 
         # Update history
         self.history.append({"role": "user", "content": user_input})
