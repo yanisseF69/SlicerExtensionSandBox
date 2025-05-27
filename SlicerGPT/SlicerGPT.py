@@ -346,6 +346,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.prompt.clear()
             message = {"role": "user", "content": text}
             self.ui.applyButton.enabled = False
+            self.applyButtonEnabled = False
             dialogue = self.logic.process(message)
             self.ui.conversation.setText(dialogue)
 

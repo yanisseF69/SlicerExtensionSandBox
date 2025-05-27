@@ -10,13 +10,13 @@ num_cores = os.cpu_count()
 FAISS_DIR = "./SlicerFAISS"
 
 class Model:
-    def __init__(self, manager, model_name="unsloth/Qwen3-0.6B-GGUF", file_name="Qwen3-0.6B-Q4_0.gguf"):
+    def __init__(self, manager, model_name="unsloth/Qwen3-0.6B-GGUF", file_name="Qwen3-0.6B-Q4_K_M.gguf"):
 
         self.llm = Llama.from_pretrained(
             repo_id=model_name,
             filename=file_name,
             verbose=True,
-            n_ctx=16384,
+            n_ctx=40960,
             n_gpu_layers=-1,
             n_threads=math.ceil(num_cores/2)
         )
@@ -66,7 +66,7 @@ class Model:
         self.history.append({"role": "user", "content": user_input})
         self.history.append({"role": "assistant", "content": response})
 
-        return context + response
+        return response
 
 # if __name__ == "__main__":
 
