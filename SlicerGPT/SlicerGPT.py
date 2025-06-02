@@ -297,7 +297,6 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onThinkBoxToggled(self, checked):
         self.logic.setThinking(checked)
-        print(checked)
 
 
     def initializeParameterNode(self) -> None:
@@ -524,7 +523,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         logging.info("Processing started")
 
         self.dialogue.append(message)
-        temp_message = {"role": "assistant", "content": "Traitement en cours..."}
+        temp_message = {"role": "assistant", "content": "Generating response..."}
         self.dialogue.append(temp_message)
         
         # Préparer le message avec les informations de la scène MRML

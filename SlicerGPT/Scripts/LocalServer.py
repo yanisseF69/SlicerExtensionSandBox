@@ -66,13 +66,13 @@ async def generate(message: Message):
 
 @inferenceServer.get("/health")
 async def health_check():
-    """Endpoint simple pour vérifier que le serveur est opérationnel"""
+    """Simple enpoint to check the server's status"""
     return {"status": "ok", "timestamp": time.time()}
 
 
 @inferenceServer.get("/shutdown")
 async def shutdown():
-    """Endpoint pour arrêter proprement le serveur"""
+    """Endpoint who stops the server"""
     logger.info("Shutdown request received")
     
     # Déclencher l'arrêt dans un thread séparé pour pouvoir renvoyer une réponse
