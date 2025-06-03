@@ -20,6 +20,7 @@ SlicerGPT relies on the [llama-cpp-python](https://github.com/abetlen/llama-cpp-
 
 You can find full installation instructions and platform-specific compiler requirements in the official GitHub repository:  
 👉 [https://github.com/abetlen/llama-cpp-python](https://github.com/abetlen/llama-cpp-python)
+For the moment, only the CPU version is compatible with this extension.
 
 Make sure your 3D Slicer's python version is 3.8 or higher.
 
