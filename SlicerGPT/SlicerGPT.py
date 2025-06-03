@@ -32,20 +32,17 @@ class SlicerGPT(ScriptedLoadableModule):
 
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = ("SlicerGPT")  # TODO: make this more human readable by adding spaces
-        # TODO: set categories (folders where the module shows up in the module selector)
+        self.parent.title = ("SlicerGPT")
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Utilities")]
-        self.parent.dependencies = []  # TODO: add here list of module names that this module requires
-        self.parent.contributors = ["Yanisse FERHAOUI - Institut Pascal"]  # TODO: replace with "Firstname Lastname (Organization)"
-        # TODO: update with short description of the module and a link to online module documentation
-        # _() function marks text as translatable to other languages
+        self.parent.dependencies = []
+        self.parent.contributors = ["Yanisse FERHAOUI (Institut Pascal & UCA & UCBL)"]
         self.parent.helpText = _("""
 This module integrates an intelligent chatbot designed to assist 3D Slicer users.
 You can ask questions in natural language about the software usage, Python scripting, extensions, or advanced features.
 <br><br>
 The chatbot uses a local knowledge base (RAG) including documentation, forum content, and source code to provide accurate answers.
 <br><br>
-See more information in the <a href="https://github.com/organization/projectname#SlicerGPT">module documentation</a>.
+See more information in the <a href="https://github.com/yanisseF69/SlicerSlicerGPT">module documentation</a>.
 """)
         # TODO: replace with organization, grant and thanks
         self.parent.acknowledgementText = _("""
@@ -153,7 +150,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         ScriptedLoadableModuleWidget.setup(self)
 
         if not self.areDependenciesSatisfied():
-            error_msg = "Slicer PyTorch, langchain and transformers are required by this plugin.\n" \
+            error_msg = "Llama.cpp, langchain and transformers are required by this plugin.\n" \
                         "Please click on the Download button to download and install these dependencies."
             self.layout.addWidget(qt.QLabel(error_msg))
             downloadDependenciesButton = qt.QPushButton("Download dependencies and restart")
@@ -213,22 +210,17 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 requests.get("http://127.0.0.1:81/shutdown", timeout=1.0)
                 logging.info("Sent shutdown request to server")
             except:
-                # Ignorer les erreurs, nous allons forcer l'arrêt de toute façon
                 pass
             
-            # Vérifier si le processus est en cours d'exécution
             if self.logic.proc.state() == qt.QProcess.Running:
                 logging.info("Terminating server process")
                 
-                # Tenter d'abord un arrêt propre
                 self.logic.proc.terminate()
                 
-                # Attendre un peu pour qu'il s'arrête
                 if not self.logic.proc.waitForFinished(3000):  # 3 secondes
                     logging.warning("Server did not terminate gracefully, killing process")
                     self.logic.proc.kill()
                     
-                    # Attendre à nouveau pour confirmer
                     if not self.logic.proc.waitForFinished(2000):  # 2 secondes supplémentaires
                         logging.error("Failed to kill server process")
                     else:
@@ -236,7 +228,6 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 else:
                     logging.info("Server process terminated gracefully")
                     
-                # Nettoyage supplémentaire
                 try:
                     pid = self.logic.proc.processId()
                     if pid > 0:
@@ -249,18 +240,15 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 except:
                     pass
             
-            # S'assurer que tous les pipes sont fermés
             self.logic.proc.closeReadChannel(qt.QProcess.StandardOutput)
             self.logic.proc.closeReadChannel(qt.QProcess.StandardError)
             self.logic.proc.closeWriteChannel()
             
             logging.info("Process cleanup completed")
         
-        # Important : supprimer la référence au processus
         if hasattr(self, "logic"):
             self.logic.proc = None
         
-        # Déconnexion de tous les signaux et observers
         self.removeObservers()
 
     def enter(self) -> None:
@@ -426,7 +414,9 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     """
 
     def __init__(self) -> None:
-        """Called when the logic class is instantiated. Can be used for initializing member variables."""
+        """
+        Starts the local server and connect alm the callbacks.
+        """
         ScriptedLoadableModuleLogic.__init__(self)
         self.dialogue = []
         self.proc = qt.QProcess()
@@ -468,22 +458,23 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         print("[STDERR]", error)
 
     def handleResponse(self, response_data):
-        """Gère la réponse reçue de façon asynchrone"""
-        # Ajouter la réponse à notre dialogue
+        """
+        Handle the received response during the async request
+        """
         print(response_data)
         self.dialogue.pop()
         self.dialogue.append({"role": "assistant", "content": response_data})
         
-        # Mettre à jour l'interface utilisateur
         if self.widget:
             self.widget.updateConversation(self.formatDialogue())
             
     def handleError(self, error_message):
-        """Gère les erreurs lors de l'appel asynchrone"""
+        """
+        Handle errors during the async request.
+        """
         # Ajouter un message d'erreur à notre dialogue
         self.dialogue.append({"role": "assistant", "content": f"Erreur de communication avec le serveur: {error_message}"})
         
-        # Mettre à jour l'interface utilisateur
         if self.widget:
             self.widget.updateConversation(self.formatDialogue())
     
@@ -513,29 +504,21 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
 
     def process(self, message) -> str:
         """
-        Run the processing algorithm.
-        TODO complete when the final process will be planned.
+        Run the processing algorithm, send the question to the model.
         """
 
-        import time
-
-        startTime = time.time()
         logging.info("Processing started")
 
         self.dialogue.append(message)
         temp_message = {"role": "assistant", "content": "Generating response..."}
         self.dialogue.append(temp_message)
         
-        # Préparer le message avec les informations de la scène MRML
         message["mrml_scene"] = extract_mrml_scene_as_text()
         
-        # Mise à jour initiale de l'interface avant l'envoi
         formatted_dialogue = self.formatDialogue()
         
-        # Lancer la requête asynchrone
         self.async_request.post("http://127.0.0.1:8081/generate", message)
         
-        # Retourner le dialogue actuel avec l'indicateur de chargement
         return formatted_dialogue
 
 

@@ -1,8 +1,5 @@
 from llama_cpp import Llama
-import os
-import math
 
-num_cores = os.cpu_count()
 
 FAISS_DIR = "./SlicerFAISS"
 
@@ -12,18 +9,18 @@ class Model:
         self.llm = Llama.from_pretrained(
             repo_id=model_name,
             filename=file_name,
-            verbose=False,
-            n_ctx=40960,
+            verbose=True,
+            n_ctx=8196,
             n_gpu_layers=-1,
             n_threads=1
         )
-        # print(f"{math.ceil(num_cores/2)} thread instanciated.") 
+
         self.manager = manager
         self.history = [{
             "role": "system", 
             "content": (
-                "You are a 3D Slicer assistant. Provide accurate, concise help with Python scripting and GUI operations. "
-                "Use official documentation when possible. Give working code examples when the user ask it."
+                "You are a 3D Slicer assistant. Provide accurate, concise help with GUI operations. "
+                "Use official documentation when possible. At the end of you responses you can redirect the users to the documentation in 'https://slicer.readthedocs.io' the forum in 'https://discourse.slicer.org/' and the training website in 'https://training.slicer.org/'"
             )
         }]
 
@@ -38,7 +35,7 @@ class Model:
     def generate_response(self, user_input, mrml_scene):
         
 
-        docs = self.manager.search(user_input, k=3) # Récupère les 3 documents les plus pertinents
+        docs = self.manager.search(user_input, k=3)
         context = (
             "Context documents:\n"
             + "\n---\n".join([doc.page_content for doc in docs]) + "\n\n"
@@ -48,17 +45,10 @@ class Model:
 
             "Now, based on this context, the recent conversation, and your internal knowledge of 3D Slicer, "
             "answer the user's question as a real 3D Slicer expert would. "
-            "Be technically accurate, easy to understand, and do not make up facts. "
-            "Prefer a minimal working Python code snippet if the question involves scripting.\n\n"
+            "Be technically accurate, easy to understand, and do not make up facts.\n\n"
 
             f"User question: {user_input}"
         )
-
-
-        print("context ok")
-        
-        
-        print("context ok")
         
         messages = self.history + [{"role": "user", "content": context + user_input + self.think()}]
 

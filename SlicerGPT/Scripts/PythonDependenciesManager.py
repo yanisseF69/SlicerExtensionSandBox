@@ -34,25 +34,29 @@ class PythonDependencyChecker(object):
 
       progressDialog = progressDialog or slicer.util.createProgressDialog(maximum=0)
       progressDialog.labelText = "Installing PyTorch"
-
-      import shutil
-
-      gcc_path = shutil.which('gcc')
-      gxx_path = shutil.which('g++')
-      if not gcc_path:
-        gcc_path = shutil.which('clang')
-      if not gxx_path:
-          gxx_path = shutil.which('clang++')
       
-      env_vars = {
-        'CC': gcc_path,
-        'CXX': gxx_path,
-        'CMAKE_C_COMPILER': gcc_path,
-        'CMAKE_CXX_COMPILER': gxx_path
-      }
-      
-      for key, value in env_vars.items():
-          os.environ[key] = value
+      import platform
+
+      if platform.system() == "Linux":
+          import shutil
+
+          gcc_path = shutil.which('gcc')
+          gxx_path = shutil.which('g++')
+          if not gcc_path:
+            gcc_path = shutil.which('clang')
+          if not gxx_path:
+              gxx_path = shutil.which('clang++')
+              
+          env_vars = {
+              'CC': gcc_path,
+              'CXX': gxx_path,
+              'CMAKE_C_COMPILER': gcc_path,
+              'CMAKE_CXX_COMPILER': gxx_path
+          }
+
+          for key, value in env_vars.items():
+              os.environ[key] = value
+
 
       os.environ["CMAKE_ARGS"] = "-DGGML_BLAS=on"
       os.environ["DGGML_BLAS_VENDOR"] = "OpenBLAS"
