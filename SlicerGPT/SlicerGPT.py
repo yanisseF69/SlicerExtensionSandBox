@@ -151,7 +151,8 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         if not self.areDependenciesSatisfied():
             error_msg = "Llama.cpp, langchain and transformers are required by this plugin.\n" \
-                        "Please click on the Download button to download and install these dependencies."
+                        "Please click on the Download button to download and install these dependencies.\n" \
+                        "IMPORTANT : Llama.cpp will be compiled after its installation, please ensure you have a C/C++ compiler installed in your computer."
             self.layout.addWidget(qt.QLabel(error_msg))
             downloadDependenciesButton = qt.QPushButton("Download dependencies and restart")
             downloadDependenciesButton.connect("clicked(bool)", self.downloadDependenciesAndRestart)
@@ -174,12 +175,14 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Create logic class. Logic implements all computations that should be possible to run
         # in batch mode, without a graphical user interface.
 
-        progressDialog = slicer.util.createProgressDialog(maximum=0)
-        progressDialog.labelText = "Downloading & launching model (The first time this action can take a while)"
         self.logic = SlicerGPTLogic()
-        self.logic.widget = self
+        self.loadingLabel = qt.QLabel("Launching local AI server... Please wait.")
+        self.layout.addWidget(self.loadingLabel)
 
-        progressDialog.close()
+        uiWidget.setEnabled(False)
+        self.uiWidget = uiWidget
+
+        self.logic.widget = self
 
         self.applyButtonEnabled = True
 
@@ -207,7 +210,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             try:
                 import requests
                 # Timeout court pour ne pas bloquer la fermeture
-                requests.get("http://127.0.0.1:81/shutdown", timeout=1.0)
+                requests.get("http://127.0.0.1:8081/shutdown", timeout=1.0)
                 logging.info("Sent shutdown request to server")
             except:
                 pass
@@ -286,6 +289,13 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onThinkBoxToggled(self, checked):
         self.logic.setThinking(checked)
 
+    def onServerReady(self):
+        if hasattr(self, 'loadingLabel'):
+            self.loadingLabel.hide()
+        if hasattr(self, 'uiWidget'):
+            self.uiWidget.setEnabled(True)
+        self.applyButtonEnabled = True
+
 
     def initializeParameterNode(self) -> None:
         """Ensure parameter node exists and observed."""
@@ -333,6 +343,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.prompt.clear()
             message = {"role": "user", "content": text}
             self.ui.applyButton.enabled = False
+            self.ui.thinkBox.enabled = False
             self.applyButtonEnabled = False
             dialogue = self.logic.process(message)
             self.ui.conversation.setText(dialogue)
@@ -344,6 +355,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.conversation.setText(dialogue_text)
         
         # Réactiver le bouton d'envoi
+        self.ui.thinkBox.enabled = True
         self.applyButtonEnabled = True
     
     @staticmethod
@@ -400,8 +412,8 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 import requests
 import sys
-import re
 from Scripts.Utils import extract_mrml_scene_as_text
+from Scripts.Utils import markdown_to_html
 
 class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     """This class should implement all the actual
@@ -452,10 +464,19 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         output = self.proc.readAllStandardOutput().data().decode()
         print("[STDOUT]", output)
 
+        if "Uvicorn running on http://127.0.0.1:8081" in output:
+            print("[INFO] Server ready")
+            if self.widget:
+                self.widget.onServerReady()
+
     def handle_stderr(self):
         raw = self.proc.readAllStandardError().data()
         error = raw.decode(errors="replace")
         print("[STDERR]", error)
+        if "Uvicorn running on http://127.0.0.1:8081" in error:
+            print("[INFO] Server ready")
+            if self.widget:
+                self.widget.onServerReady()
 
     def handleResponse(self, response_data):
         """
@@ -482,7 +503,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         """
         Change the chatbot thinking mode.
         """
-        requests.post("http://127.0.0.1:81/setThink", json={"think": think})
+        requests.post("http://127.0.0.1:8081/setThink", json={"think": think})
     
     def formatDialogue(self) -> str:
         """
@@ -490,9 +511,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         """
         finalDialogue = []
         for message in self.dialogue:
-            content = message["content"].replace('\n', '<br>')
-            content = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', content)
-            content = re.sub(r'<think>(.+?)</think>', r'<i>\1</i>', content, flags=re.DOTALL)
+            content = markdown_to_html(message["content"])
             if message["role"] == "assistant":
                 finalDialogue.append(f'<div style="text-align:left; margin: 5px;"><span style="color:red; font-weight:bold;">SlicerGPT:</span><br>{content}</div>')
             elif message["role"] == "user":

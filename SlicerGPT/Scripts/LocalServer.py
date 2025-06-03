@@ -91,7 +91,7 @@ async def shutdown():
 
 # Fonction de démarrage pour le serveur Uvicorn
 def run_server():
-    logger.info(f"Starting server on port 81, PID: {server_pid}")
+    logger.info(f"Starting server on port 8081, PID: {server_pid}")
     
     # Configuration du serveur Uvicorn
     config = uvicorn.Config(

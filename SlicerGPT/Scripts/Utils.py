@@ -22,6 +22,38 @@ def extract_mrml_scene_as_text():
     finally:
         os.remove(temp_file_path)
 
+def markdown_to_html(content: str) -> str:
+    import re
+
+    # Links : [text](url)
+    content = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', content)
+
+    # Gras : **text**
+    content = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', content)
+
+    # Italique : *text*
+    content = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<i>\1</i>', content)
+
+    # Italic : <think>text</think> → <i>text</i>
+    content = re.sub(r'<think>(.+?)</think>', r'<i>\1</i>', content, flags=re.DOTALL)
+
+    # Titles : ### Title 3
+    content = re.sub(r'^### (.+)$', r'<h3>\1</h3>', content, flags=re.MULTILINE)
+
+    # Titles : ## Title 2
+    content = re.sub(r'^## (.+)$', r'<h2>\1</h2>', content, flags=re.MULTILINE)
+
+    # Bullet lists: - item
+    content = re.sub(r'(?m)^- (.+)', r'<li>\1</li>', content)
+    # Wrap <li> in <ul>
+    if "<li>" in content:
+        content = re.sub(r'((<li>.*?</li>\s*)+)', r'<ul>\1</ul>', content, flags=re.DOTALL)
+
+    # <br>
+    content = content.replace('\n', '<br>\n')
+
+    return content
+
 def list_nodes(filter_type="names", class_name=None, name=None, id=None):
     """
     List MRML nodes directly using the Slicer Python API.
