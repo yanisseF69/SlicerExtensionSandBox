@@ -533,7 +533,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         formatted_dialogue = self.formatDialogue()
         
         # Lancer la requête asynchrone
-        self.async_request.post("http://127.0.0.1:81/generate", message)
+        self.async_request.post("http://127.0.0.1:8081/generate", message)
         
         # Retourner le dialogue actuel avec l'indicateur de chargement
         return formatted_dialogue

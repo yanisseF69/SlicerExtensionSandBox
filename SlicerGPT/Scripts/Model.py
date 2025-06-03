@@ -15,7 +15,7 @@ class Model:
             verbose=False,
             n_ctx=40960,
             n_gpu_layers=-1,
-            n_threads=math.ceil(num_cores/2)
+            n_threads=1
         )
         # print(f"{math.ceil(num_cores/2)} thread instanciated.") 
         self.manager = manager

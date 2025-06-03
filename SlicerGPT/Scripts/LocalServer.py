@@ -97,7 +97,7 @@ def run_server():
     config = uvicorn.Config(
         app=inferenceServer, 
         host="127.0.0.1",
-        port=81,
+        port=8081,
         log_level="info",
         loop="asyncio",
         workers=1
