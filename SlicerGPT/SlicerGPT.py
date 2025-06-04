@@ -249,7 +249,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             
             logging.info("Process cleanup completed")
         
-        if hasattr(self, "logic"):
+        if hasattr(self, "logic") and hasattr(self.logic, "proc"):
             self.logic.proc = None
         
         self.removeObservers()

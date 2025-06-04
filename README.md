@@ -1,5 +1,7 @@
 # SlicerGPT: Chatbot Extension for 3D Slicer
 
+![App screenshot](SlicerGPT\Resources\Screenshots\App.png "App screenshot")
+
 ## Introduction
 
 **SlicerGPT** is an extension for [3D Slicer](https://www.slicer.org/) that integrates a large language model (LLM) directly into the Slicer environment to assist users with 3D Slicer usage.
@@ -25,6 +27,8 @@ For the moment, only the CPU version is compatible with this extension.
 Make sure your 3D Slicer's python version is 3.8 or higher.
 
 ## Installation & Usage
+
+![Installation screenshot](SlicerGPT\Resources\Screenshots\Installation.png "Installation screenshot")
 
 Once SlicerGPT is installed as a 3D Slicer extension, follow these steps to get it running correctly.
 
