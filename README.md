@@ -1,6 +1,6 @@
 # SlicerGPT: Chatbot Extension for 3D Slicer
 
-![App screenshot](https://github.com/yanisseF69/SlicerSlicerGPT/tree/main/SlicerGPT/Resources/Screenshots/App.png "App screenshot")
+<img src=https://github.com/yanisseF69/SlicerSlicerGPT/tree/main/SlicerGPT/Resources/Screenshots/App.png alt="App screenshot"/>
 
 ## Introduction
 
@@ -28,7 +28,7 @@ Make sure your 3D Slicer's python version is 3.8 or higher.
 
 ## Installation & Usage
 
-![Installation screenshot](https://github.com/yanisseF69/SlicerSlicerGPT/tree/main/SlicerGPT/Resources/Screenshots/Installation.png "Installation screenshot")
+<img src=https://github.com/yanisseF69/SlicerSlicerGPT/tree/main/SlicerGPT/Resources/Screenshots/Installation.png alt="Installation screenshot"/>
 
 Once SlicerGPT is installed as a 3D Slicer extension, follow these steps to get it running correctly.
 
