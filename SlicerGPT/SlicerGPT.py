@@ -367,40 +367,8 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def downloadDependenciesAndRestart():
         from Scripts.PythonDependenciesManager import PythonDependencyChecker
         progressDialog = slicer.util.createProgressDialog(maximum=0)
-        # extensionManager = slicer.app.extensionsManagerModel()
-
-        # def downloadWithMetaData(extName):
-        # # Method for downloading extensions prior to Slicer 5.0.3
-        #     meta_data = extensionManager.retrieveExtensionMetadataByName(extName)
-        #     if meta_data:
-        #         return extensionManager.downloadAndInstallExtension(meta_data["extension_id"])
-
-        # def downloadWithName(extName):
-        # # Direct extension download since Slicer 5.0.3
-        #     return extensionManager.downloadAndInstallExtensionByName(extName)
-
-        # Install Slicer extensions
-        # downloadF = downloadWithName if hasattr(extensionManager,
-        #                                         "downloadAndInstallExtensionByName") else downloadWithMetaData
-
-        # slicerExtensions = ["PyTorch"]
-        # for slicerExt in slicerExtensions:
-        #     progressDialog.labelText = f"Installing the {slicerExt}\nSlicer extension"
-        #     downloadF(slicerExt)
-
         PythonDependencyChecker.installDependenciesIfNeeded(progressDialog)
         progressDialog.close()
-
-        # Restart if no extension failed to download. Otherwise warn the user about the failure.
-        # failedDownload = [slicerExt for slicerExt in slicerExtensions if
-        #                 not extensionManager.isExtensionInstalled(slicerExt)]
-
-        # if failedDownload:
-        #     failed_ext_list = "\n".join(failedDownload)
-        #     warning_msg = f"The download process failed install the following extensions : {failed_ext_list}" \
-        #                     f"\n\nPlease try to manually install them using Slicer's extension manager"
-        #     qt.QMessageBox.warning(None, "Failed to download extensions", warning_msg)
-        # else:
         slicer.app.restart()
 
             
@@ -414,6 +382,7 @@ import requests
 import sys
 from Scripts.Utils import extract_mrml_scene_as_text
 from Scripts.Utils import markdown_to_html
+import json
 
 class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     """This class should implement all the actual
@@ -425,7 +394,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
     """
 
-    def __init__(self) -> None:
+    def __init__(self, test = False) -> None:
         """
         Starts the local server and connect alm the callbacks.
         """
@@ -451,6 +420,8 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         self.async_request.requestFailed.connect(self.handleError)
 
         self.widget = None
+        self.serverReady = False
+        self.test = test
 
         
     def getParameterNode(self):
@@ -460,34 +431,47 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         print("[INFO] Starting process...")
         self.proc.start()
 
+    def checkServerInitialised(self, output):
+        if "Uvicorn running on http://127.0.0.1:8081" in output:
+            print("[INFO] Server ready")
+            self.serverReady = True
+            if self.test:
+                self.performTest()
+            if self.widget:
+                self.widget.onServerReady()
+
     def handle_stdout(self):
         output = self.proc.readAllStandardOutput().data().decode()
         print("[STDOUT]", output)
-
-        if "Uvicorn running on http://127.0.0.1:8081" in output:
-            print("[INFO] Server ready")
-            if self.widget:
-                self.widget.onServerReady()
+        if self.serverReady:
+            self.checkServerInitialised(output)
+        
 
     def handle_stderr(self):
         raw = self.proc.readAllStandardError().data()
         error = raw.decode(errors="replace")
         print("[STDERR]", error)
-        if "Uvicorn running on http://127.0.0.1:8081" in error:
-            print("[INFO] Server ready")
-            if self.widget:
-                self.widget.onServerReady()
+        if self.serverReady:
+            self.checkServerInitialised(error)
 
     def handleResponse(self, response_data):
         """
         Handle the received response during the async request
         """
         print(response_data)
-        self.dialogue.pop()
-        self.dialogue.append({"role": "assistant", "content": response_data})
-        
-        if self.widget:
-            self.widget.updateConversation(self.formatDialogue())
+
+        if isinstance(response_data, dict):
+            if self.checkStatus(response_data):
+                print("Test validated !")
+
+
+        else:
+
+            self.dialogue.pop()
+            self.dialogue.append({"role": "assistant", "content": response_data})
+
+            if self.widget:
+                self.widget.updateConversation(self.formatDialogue())
             
     def handleError(self, error_message):
         """
@@ -504,6 +488,11 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         Change the chatbot thinking mode.
         """
         requests.post("http://127.0.0.1:8081/setThink", json={"think": think})
+
+    def checkStatus(self, data):
+        if data.get("status") == "ok":
+            return True
+        return False
     
     def formatDialogue(self) -> str:
         """
@@ -539,6 +528,9 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         self.async_request.post("http://127.0.0.1:8081/generate", message)
         
         return formatted_dialogue
+    
+    def performTest(self):
+        self.async_request.get("http://127.0.0.1:8081/health")
 
 
 
