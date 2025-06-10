@@ -2,6 +2,17 @@
 
 <img src="https://github.com/yanisseF69/SlicerSlicerGPT/blob/main/SlicerGPT/Resources/Screenshots/App.png" alt="App screenshot"/>
 
+## Table of contents
+
+* [Introduction](#introduction)
+* [Requirements](#requirements)
+* [Installation & Usage](#installation--usage)
+* [First Launch (one-time setup)](#first-launch-one-time-setup)
+* [Model download](#model-download)
+* [Starting the Chatbot](#starting-the-chatbot)
+* [Using SlicerGPT](#using-slicergpt)
+* [Subsequent Launches](#subsequent-launches)
+
 ## Introduction
 
 **SlicerGPT** is an extension for [3D Slicer](https://www.slicer.org/) that integrates a large language model (LLM) directly into the Slicer environment to assist users with 3D Slicer usage.

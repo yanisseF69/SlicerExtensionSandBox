@@ -19,6 +19,7 @@ class PythonDependencyChecker(object):
       import faiss
       import fastapi
       import uvicorn
+      import azure
 
       return True
 
@@ -62,7 +63,7 @@ class PythonDependencyChecker(object):
       os.environ["DGGML_BLAS_VENDOR"] = "OpenBLAS"
       os.environ["FORCE_CMAKE"] = "1"
 
-      for dep in ["llama-cpp-python", "fastapi", "uvicorn", "langchain_huggingface", "langchain_community", "hf-xet", "faiss-cpu==1.7.4"]:
+      for dep in ["llama-cpp-python", "fastapi", "uvicorn", "langchain_huggingface", "langchain_community", "hf-xet", "faiss-cpu==1.7.4", "azure-ai-inference"]:
         progressDialog.labelText = "Installing " + dep
         slicer.util.pip_install(dep)
     except Exception as e:

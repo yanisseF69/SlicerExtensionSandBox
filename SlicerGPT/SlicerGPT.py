@@ -139,15 +139,16 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
         self.ui.thinkBox.toggled.connect(self.onThinkBoxToggled)
 
+        self.ui.baseButton.clicked.connect(lambda: self.onModelsBoxChanged(self.ui.baseButton))
+        self.ui.apiButton.clicked.connect(lambda: self.onModelsBoxChanged(self.ui.apiButton))
+
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
         logging.info("Cleaning up SlicerGPT module")
         
         if hasattr(self, "logic") and hasattr(self.logic, "proc"):
-            # Essayer d'abord d'arrêter le serveur en douceur via une requête HTTP
             try:
                 import requests
-                # Timeout court pour ne pas bloquer la fermeture
                 requests.get("http://127.0.0.1:8081/shutdown", timeout=1.0)
                 logging.info("Sent shutdown request to server")
             except:
@@ -158,11 +159,11 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 
                 self.logic.proc.terminate()
                 
-                if not self.logic.proc.waitForFinished(3000):  # 3 secondes
+                if not self.logic.proc.waitForFinished(3000):
                     logging.warning("Server did not terminate gracefully, killing process")
                     self.logic.proc.kill()
                     
-                    if not self.logic.proc.waitForFinished(2000):  # 2 secondes supplémentaires
+                    if not self.logic.proc.waitForFinished(2000):
                         logging.error("Failed to kill server process")
                     else:
                         logging.info("Server process killed")
@@ -199,6 +200,13 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.ui.applyButton.enabled = True
             else:
                 self.ui.applyButton.enabled = False
+
+    def onModelsBoxChanged(self, button) -> None:
+        """Called when the user change the model used."""
+        if button.text == "API Model":
+            self.logic.setModel(True)
+        else:
+            self.logic.setModel(False)
 
     def onThinkBoxToggled(self, checked):
         self.logic.setThinking(checked)
@@ -270,7 +278,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
     """
 
-    def __init__(self, test = False) -> None:
+    def __init__(self) -> None:
         """
         Starts the local server and connect alm the callbacks.
         """
@@ -297,7 +305,9 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
 
         self.widget = None
         self.serverReady = False
-        self.test = test
+
+        self.think = False
+        self.useApi = False
 
         
     def getParameterNode(self):
@@ -352,9 +362,12 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     
     def setThinking(self, think):
         """
-        Change the chatbot thinking mode.
+        Change the base chatbot thinking mode.
         """
-        requests.post("http://127.0.0.1:8081/setThink", json={"think": think})
+        self.think = think
+
+    def setModel(self, apiModel):
+        self.useApi = apiModel
 
     def checkStatus(self, data):
         if data.get("status") == "ok":
@@ -389,6 +402,8 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         self.dialogue.append(temp_message)
         
         message["mrml_scene"] = extract_mrml_scene_as_text()
+        message["think"] = self.think
+        message["use_api"] = self.useApi
         
         formatted_dialogue = self.formatDialogue()
         

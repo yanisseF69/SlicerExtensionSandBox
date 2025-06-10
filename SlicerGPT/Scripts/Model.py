@@ -1,4 +1,10 @@
 from llama_cpp import Llama
+from azure.ai.inference import ChatCompletionsClient
+from azure.ai.inference.models import SystemMessage, UserMessage
+from azure.core.credentials import AzureKeyCredential
+
+import os
+os.environ["INFERENCE_API_TOKEN"] = ""
 
 
 FAISS_DIR = "./SlicerFAISS"
@@ -14,6 +20,13 @@ class Model:
             n_gpu_layers=-1,
             n_threads=1
         )
+        endpoint = "https://models.github.ai/inference"
+        self.api_model = "openai/gpt-4.1"
+        api_token = os.environ["INFERENCE_API_TOKEN"]
+        self.client = ChatCompletionsClient(
+            endpoint=endpoint,
+            credential=AzureKeyCredential(api_token),
+        )
 
         self.manager = manager
         self.history = [{
@@ -26,14 +39,14 @@ class Model:
 
         # self.history = []
         self.has_history = True
-        self.enable_thinking = False
 
-    def think(self):
-        return " /think" if self.enable_thinking is True else " /no_think"
+    def think(self, enable_thinking):
+        return " /think" if enable_thinking is True else " /no_think"
 
 
-    def generate_response(self, user_input, mrml_scene):
+    def generate_response(self, user_input, mrml_scene, enable_thinking, use_api):
         
+        print(mrml_scene)
 
         docs = self.manager.search(user_input, k=3)
         context = (
@@ -50,11 +63,21 @@ class Model:
             f"User question: {user_input}"
         )
         
-        messages = self.history + [{"role": "user", "content": context + user_input + self.think()}]
+        think = self.think(enable_thinking) if not use_api else ""
+        messages = self.history + [{"role": "user", "content": context + user_input + think}]
 
-        resp = self.llm.create_chat_completion(
+        if use_api:
+            resp = self.client.complete(
             messages=messages,
+            temperature=0,
+            top_p=1.0,
+            model=self.api_model
         )
+    
+        else:
+            resp = self.llm.create_chat_completion(
+                messages=messages,
+            )
 
         response = resp["choices"][0]["message"]["content"]
 
