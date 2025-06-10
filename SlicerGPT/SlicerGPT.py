@@ -49,59 +49,6 @@ See more information in the <a href="https://github.com/yanisseF69/SlicerSlicerG
 This plugin was initially developed during Yanisse FERHAOUI's final-year internship as part of an academic research project.
 """)
 
-        # Additional initialization step after application startup is complete
-        slicer.app.connect("startupCompleted()", registerSampleData)
-
-
-#
-# Register sample data sets in Sample Data module
-#
-
-
-def registerSampleData():
-    """Add data sets to Sample Data module."""
-    # It is always recommended to provide sample data for users to make it easy to try the module,
-    # but if no sample data is available then this method (and associated startupCompeted signal connection) can be removed.
-
-    import SampleData
-
-    iconsPath = os.path.join(os.path.dirname(__file__), "Resources/Icons")
-
-    # To ensure that the source code repository remains small (can be downloaded and installed quickly)
-    # it is recommended to store data sets that are larger than a few MB in a Github release.
-
-    # SlicerGPT1
-    SampleData.SampleDataLogic.registerCustomSampleDataSource(
-        # Category and sample name displayed in Sample Data module
-        category="SlicerGPT",
-        sampleName="SlicerGPT1",
-        # Thumbnail should have size of approximately 260x280 pixels and stored in Resources/Icons folder.
-        # It can be created by Screen Capture module, "Capture all views" option enabled, "Number of images" set to "Single".
-        thumbnailFileName=os.path.join(iconsPath, "SlicerGPT1.png"),
-        # Download URL and target file name
-        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256/998cb522173839c78657f4bc0ea907cea09fd04e44601f17c82ea27927937b95",
-        fileNames="SlicerGPT1.nrrd",
-        # Checksum to ensure file integrity. Can be computed by this command:
-        #  import hashlib; print(hashlib.sha256(open(filename, "rb").read()).hexdigest())
-        checksums="SHA256:998cb522173839c78657f4bc0ea907cea09fd04e44601f17c82ea27927937b95",
-        # This node name will be used when the data set is loaded
-        nodeNames="SlicerGPT1",
-    )
-
-    # SlicerGPT2
-    SampleData.SampleDataLogic.registerCustomSampleDataSource(
-        # Category and sample name displayed in Sample Data module
-        category="SlicerGPT",
-        sampleName="SlicerGPT2",
-        thumbnailFileName=os.path.join(iconsPath, "SlicerGPT2.png"),
-        # Download URL and target file name
-        uris="https://github.com/Slicer/SlicerTestingData/releases/download/SHA256/1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97",
-        fileNames="SlicerGPT2.nrrd",
-        checksums="SHA256:1a64f3f422eb3d1c9b093d1a18da354b13bcf307907c66317e2463ee530b7a97",
-        # This node name will be used when the data set is loaded
-        nodeNames="SlicerGPT2",
-    )
-
 
 #
 # SlicerGPTParameterNode
@@ -142,8 +89,6 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         ScriptedLoadableModuleWidget.__init__(self, parent)
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
         self.logic = None
-        self._parameterNode = None
-        self._parameterNodeGuiTag = None
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -188,18 +133,11 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Connections
 
-        # These connections ensure that we update parameter node when scene is closed
-        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
-        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
-
         self.ui.prompt.textChanged.connect(self.onPromptTextChanged)
 
         # Buttons
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
         self.ui.thinkBox.toggled.connect(self.onThinkBoxToggled)
-
-        # Make sure parameter node is initialized (needed for module reload)
-        self.initializeParameterNode()
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
@@ -254,30 +192,6 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         self.removeObservers()
 
-    def enter(self) -> None:
-        """Called each time the user opens this module."""
-        # Make sure parameter node exists and observed
-        self.initializeParameterNode()
-
-    def exit(self) -> None:
-        """Called each time the user opens a different module."""
-        # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
-        # if self._parameterNode:
-        #     self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
-        #     self._parameterNodeGuiTag = None
-        #     self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
-
-    def onSceneStartClose(self, caller, event) -> None:
-        """Called just before the scene is closed."""
-        # Parameter node will be reset, do not use it anymore
-        # self.setParameterNode(None)
-
-    def onSceneEndClose(self, caller, event) -> None:
-        """Called just after the scene is closed."""
-        # If this module is shown while the scene is closed then recreate a new parameter node immediately
-        # if self.parent.isEntered:
-        #     self.initializeParameterNode()
-
     def onPromptTextChanged(self) -> None:
         """Called when the prompt text is changed."""
         if self.applyButtonEnabled:
@@ -296,44 +210,6 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.uiWidget.setEnabled(True)
         self.applyButtonEnabled = True
 
-
-    def initializeParameterNode(self) -> None:
-        """Ensure parameter node exists and observed."""
-        # Parameter node stores all user choices in parameter values, node selections, etc.
-        # so that when the scene is saved and reloaded, these settings are restored.
-
-        # self.setParameterNode(self.logic.getParameterNode())
-
-        # # Select default input nodes if nothing is selected yet to save a few clicks for the user
-        # if not self._parameterNode.inputVolume:
-        #     firstVolumeNode = slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLScalarVolumeNode")
-        #     if firstVolumeNode:
-        #         self._parameterNode.inputVolume = firstVolumeNode
-
-    def setParameterNode(self, inputParameterNode: Optional[SlicerGPTParameterNode]) -> None:
-        """
-        Set and observe parameter node.
-        Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
-        """
-
-        if self.ui.prompt.plainText.selectAll() != '':
-            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
-            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
-        self._parameterNode = inputParameterNode
-        if self._parameterNode:
-            # Note: in the .ui file, a Qt dynamic property called "SlicerParameterName" is set on each
-            # ui element that needs connection.
-            self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
-            self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
-            self._checkCanApply()
-
-    def _checkCanApply(self, caller=None, event=None) -> None:
-        if self._parameterNode and self._parameterNode.inputVolume and self._parameterNode.thresholdedVolume:
-            self.ui.applyButton.toolTip = _("Compute output volume")
-            self.ui.applyButton.enabled = True
-        else:
-            self.ui.applyButton.toolTip = _("Select input and output volume nodes")
-            self.ui.applyButton.enabled = False
 
     def onApplyButton(self) -> None:
         """Run processing when user clicks "Apply" button."""
@@ -435,15 +311,13 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         if "Uvicorn running on http://127.0.0.1:8081" in output:
             print("[INFO] Server ready")
             self.serverReady = True
-            if self.test:
-                self.performTest()
             if self.widget:
                 self.widget.onServerReady()
 
     def handle_stdout(self):
         output = self.proc.readAllStandardOutput().data().decode()
         print("[STDOUT]", output)
-        if self.serverReady:
+        if not self.serverReady:
             self.checkServerInitialised(output)
         
 
@@ -451,7 +325,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         raw = self.proc.readAllStandardError().data()
         error = raw.decode(errors="replace")
         print("[STDERR]", error)
-        if self.serverReady:
+        if not self.serverReady:
             self.checkServerInitialised(error)
 
     def handleResponse(self, response_data):
@@ -460,18 +334,11 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         """
         print(response_data)
 
-        if isinstance(response_data, dict):
-            if self.checkStatus(response_data):
-                print("Test validated !")
+        self.dialogue.pop()
+        self.dialogue.append({"role": "assistant", "content": response_data})
 
-
-        else:
-
-            self.dialogue.pop()
-            self.dialogue.append({"role": "assistant", "content": response_data})
-
-            if self.widget:
-                self.widget.updateConversation(self.formatDialogue())
+        if self.widget:
+            self.widget.updateConversation(self.formatDialogue())
             
     def handleError(self, error_message):
         """
@@ -530,13 +397,40 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         return formatted_dialogue
     
     def performTest(self):
-        self.async_request.get("http://127.0.0.1:8081/health")
+        # Attendre 30 secondes
+        time.sleep(30)
+        
+        
+        try:
+            response = requests.get("http://127.0.0.1:8081/health")
+            
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            if data.get("status") == "ok":
+                print(f"Test passed : status = {data.get('status')}")
+                return {"passed": True, "status": data.get("status")}
+            else:
+                print(f"Test failed : status = {data.get('status')}")
+                return {"passed": False, "status": data.get("status")}
+                
+        except requests.exceptions.RequestException as e:
+            print(f"Request error : {e}")
+            return {"passed": False, "status": e}
+        except json.JSONDecodeError as e:
+            print(f"Parsing JSON error : {e}")
+            return {"passed": False, "status": e}
+        except Exception as e:
+            print(f"Unexpected error : {e}")
+            return {"passed": False, "status": e}
 
 
 
 #
 # SlicerGPTTest
 #
+import time
 
 
 class SlicerGPTTest(ScriptedLoadableModuleTest):
@@ -566,38 +460,19 @@ class SlicerGPTTest(ScriptedLoadableModuleTest):
         module.  For example, if a developer removes a feature that you depend on,
         your test should break so they know that the feature is needed.
         """
-
+        
         self.delayDisplay("Starting the test")
 
-        # Get/create input data
-
-        import SampleData
-
-        registerSampleData()
-        inputVolume = SampleData.downloadSample("SlicerGPT1")
-        self.delayDisplay("Loaded test data set")
-
-        inputScalarRange = inputVolume.GetImageData().GetScalarRange()
-        self.assertEqual(inputScalarRange[0], 0)
-        self.assertEqual(inputScalarRange[1], 695)
-
-        outputVolume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-        threshold = 100
 
         # Test the module logic
 
+
         logic = SlicerGPTLogic()
+        time.sleep(30.0)
+        response = logic.performTest()
 
-        # Test algorithm with non-inverted threshold
-        logic.process(inputVolume, outputVolume, threshold, True)
-        outputScalarRange = outputVolume.GetImageData().GetScalarRange()
-        self.assertEqual(outputScalarRange[0], inputScalarRange[0])
-        self.assertEqual(outputScalarRange[1], threshold)
-
-        # Test algorithm with inverted threshold
-        logic.process(inputVolume, outputVolume, threshold, False)
-        outputScalarRange = outputVolume.GetImageData().GetScalarRange()
-        self.assertEqual(outputScalarRange[0], inputScalarRange[0])
-        self.assertEqual(outputScalarRange[1], inputScalarRange[1])
-
-        self.delayDisplay("Test passed")
+        if response.get("passed") is True:
+            self.delayDisplay("Test passed")
+            requests.get("http://127.0.0.1:8081/shutdown")
+        else:
+            self.delayDisplay(f"Test failed, received {response.get('status')}")

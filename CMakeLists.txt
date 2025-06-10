@@ -5,7 +5,7 @@ project(SlicerSlicerGPT)
 #-----------------------------------------------------------------------------
 # Extension meta-information
 set(EXTENSION_HOMEPAGE "https://www.slicer.org/wiki/Documentation/Nightly/Extensions/SlicerSlicerGPT")
-set(EXTENSION_CONTRIBUTORS "Yanisse Ferhaoui (Institut Pascal)")
+set(EXTENSION_CONTRIBUTORS "Yanisse Ferhaoui (Institut Pascal | UCA | UCBL)")
 set(EXTENSION_DESCRIPTION "A 3D Slicer extension that integrates a local AI chatbot to provide context-aware help using your scene and official documentation.")
 set(EXTENSION_ICONURL "https://www.example.com/Slicer/Extensions/SlicerSlicerGPT.png")
 set(EXTENSION_SCREENSHOTURLS "https://www.example.com/Slicer/Extensions/SlicerSlicerGPT/Screenshots/1.png")
