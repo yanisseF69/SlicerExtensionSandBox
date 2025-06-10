@@ -344,7 +344,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         """
         Handle errors during the async request.
         """
-        # Ajouter un message d'erreur à notre dialogue
+
         self.dialogue.append({"role": "assistant", "content": f"Erreur de communication avec le serveur: {error_message}"})
         
         if self.widget:
@@ -397,9 +397,6 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         return formatted_dialogue
     
     def performTest(self):
-        # Attendre 30 secondes
-        time.sleep(30)
-        
         
         try:
             response = requests.get("http://127.0.0.1:8081/health")
@@ -463,9 +460,7 @@ class SlicerGPTTest(ScriptedLoadableModuleTest):
         
         self.delayDisplay("Starting the test")
 
-
         # Test the module logic
-
 
         logic = SlicerGPTLogic()
         time.sleep(30.0)
