@@ -20,25 +20,46 @@ class Model:
             n_gpu_layers=-1,
             n_threads=1
         )
-        endpoint = "https://models.github.ai/inference"
+        self.endpoint = "https://models.github.ai/inference"
         self.api_model = "openai/gpt-4.1"
-        api_token = os.environ["INFERENCE_API_TOKEN"]
-        self.client = ChatCompletionsClient(
-            endpoint=endpoint,
-            credential=AzureKeyCredential(api_token),
-        )
+        self.client = None
 
         self.manager = manager
         self.history = [{
-            "role": "system", 
+            "role": "system",
             "content": (
-                "You are a 3D Slicer assistant. Provide accurate, concise help with GUI operations. "
-                "Use official documentation when possible. At the end of you responses you can redirect the users to the documentation in 'https://slicer.readthedocs.io' the forum in 'https://discourse.slicer.org/' and the training website in 'https://training.slicer.org/'"
+                "You are an expert 3D Slicer technical assistant. Your responses must be:\n"
+                "1. TECHNICALLY PRECISE - Use exact module/feature names and correct steps\n"
+                "2. CONCISE - Break complex tasks into numbered steps\n"
+                "3. PRACTICAL - Include troubleshooting tips for common issues\n"
+                "4. SAFE - Never suggest modifying critical system files\n\n"
+                
+                "Response Format Guidelines:\n"
+                "- Start with a brief direct answer\n"
+                "- Follow with detailed steps if needed\n"
+                "- For GUI operations, specify the exact menu path (e.g. 'Modules > Segment Editor')\n"
+                
+                "Documentation Resources:\n"
+                "- Official Manual: https://slicer.readthedocs.io\n"
+                "- User Forum: https://discourse.slicer.org/\n"
+                "- Training: https://training.slicer.org/\n\n"
+                
+                "Special Cases:\n"
+                "- For Python scripting questions, include both the script and where to paste it\n"
+                "- For DICOM issues, verify if the user has the DICOM module loaded\n"
+                "- When unsure, you have exact Slicer version in the MRML scene the user will give to you"
             )
         }]
 
         # self.history = []
         self.has_history = True
+
+    def initialize_azure_client(self, key):
+        safe_key = "".join(key.split())
+        self.client = ChatCompletionsClient(
+            endpoint=self.endpoint,
+            credential=AzureKeyCredential(safe_key),
+        )
 
     def think(self, enable_thinking):
         return " /think" if enable_thinking is True else " /no_think"
@@ -46,7 +67,7 @@ class Model:
 
     def generate_response(self, user_input, mrml_scene, enable_thinking, use_api):
         
-        print(mrml_scene)
+        # print(mrml_scene)
 
         docs = self.manager.search(user_input, k=3)
         context = (
@@ -66,13 +87,21 @@ class Model:
         think = self.think(enable_thinking) if not use_api else ""
         messages = self.history + [{"role": "user", "content": context + user_input + think}]
 
-        if use_api:
-            resp = self.client.complete(
-            messages=messages,
-            temperature=0,
-            top_p=1.0,
-            model=self.api_model
-        )
+        if use_api or self.client is not None:
+            try:
+                resp = self.client.complete(
+                messages=messages,
+                temperature=0,
+                top_p=1.0,
+                model=self.api_model
+                )
+            except Exception as e:
+                print(f"An error occured while calling the client: {e}, using the Base model instead...")
+                messages[-1].content += " /no_think"
+                resp = self.llm.create_chat_completion(
+                messages=messages,
+                )
+                
     
         else:
             resp = self.llm.create_chat_completion(

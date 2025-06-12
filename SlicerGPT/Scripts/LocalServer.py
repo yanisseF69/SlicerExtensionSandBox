@@ -25,6 +25,9 @@ class Message(BaseModel):
 class ThinkBool(BaseModel):
     think: bool
 
+class ApiKey(BaseModel):
+    key: str
+
 
 inferenceServer = FastAPI()
 
@@ -58,6 +61,16 @@ async def generate(message: Message):
     except Exception as e:
         logger.error(f"Error generating response: {str(e)}")
         raise
+
+@inferenceServer.post("/addKey")
+async def addKey(apiKey: ApiKey):
+    logger.info("Adding API key")
+    try:
+        chatbot.initialize_azure_client(apiKey.key)
+        logger.info("API Key added.")
+    except Exception as e:
+        logger.error(f"Error generating response: {str(e)}")
+
 
 
 @inferenceServer.get("/health")

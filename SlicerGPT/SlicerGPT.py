@@ -139,6 +139,8 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
         self.ui.thinkBox.toggled.connect(self.onThinkBoxToggled)
 
+        self.ui.apiKeyButton.connect("clicked(bool)", self.onApiKeyInserted)
+
         self.ui.baseButton.clicked.connect(lambda: self.onModelsBoxChanged(self.ui.baseButton))
         self.ui.apiButton.clicked.connect(lambda: self.onModelsBoxChanged(self.ui.apiButton))
 
@@ -217,6 +219,11 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if hasattr(self, 'uiWidget'):
             self.uiWidget.setEnabled(True)
         self.applyButtonEnabled = True
+
+    def onApiKeyInserted(self):
+        """Insert the API key to the logic."""
+        self.logic.addApiKey(self.ui.apiKeyText.text)
+        self.ui.apiKeyText.clear()
 
 
     def onApplyButton(self) -> None:
@@ -373,6 +380,10 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         if data.get("status") == "ok":
             return True
         return False
+    
+    def addApiKey(self, key):
+        apiKey = {"key": key}
+        requests.post("http://127.0.0.1:8081/addKey", json=apiKey)
     
     def formatDialogue(self) -> str:
         """
