@@ -97,7 +97,7 @@ class Model:
                 )
             except Exception as e:
                 print(f"An error occured while calling the client: {e}, using the Base model instead...")
-                messages[-1].content += " /no_think"
+                messages[-1]["content"] += self.think(enable_thinking)
                 resp = self.llm.create_chat_completion(
                 messages=messages,
                 )
