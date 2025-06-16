@@ -95,7 +95,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         ScriptedLoadableModuleWidget.setup(self)
 
         if not self.areDependenciesSatisfied():
-            error_msg = "Llama.cpp, langchain and transformers are required by this plugin.\n" \
+            error_msg = "Llama.cpp, langchain, azure AI inference and transformers are required by this plugin.\n" \
                         "Please click on the Download button to download and install these dependencies.\n" \
                         "IMPORTANT : Llama.cpp will be compiled after its installation, please ensure you have a C/C++ compiler installed in your computer."
             self.layout.addWidget(qt.QLabel(error_msg))
@@ -234,19 +234,19 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.prompt.clear()
             message = {"role": "user", "content": text}
             self.ui.applyButton.enabled = False
-            self.ui.thinkBox.enabled = False
+            self.ui.apiKeyButton.enabled = False
             self.applyButtonEnabled = False
             dialogue = self.logic.process(message)
             self.ui.conversation.setText(dialogue)
 
     def updateConversation(self, dialogue_text):
-        """Met à jour l'interface utilisateur avec le nouveau dialogue.
-        Cette méthode sera appelée par la logique quand une réponse asynchrone est reçue.
+        """
+        Update the UI with the response generated.
+        This method is called when the async request send a response.
         """
         self.ui.conversation.setText(dialogue_text)
         
-        # Réactiver le bouton d'envoi
-        self.ui.thinkBox.enabled = True
+        self.ui.apiKeyButton.enabled = True
         self.applyButtonEnabled = True
     
     @staticmethod
@@ -415,6 +415,8 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         message["mrml_scene"] = extract_mrml_scene_as_text()
         message["think"] = self.think
         message["use_api"] = self.useApi
+
+        print(message["mrml_scene"])
         
         formatted_dialogue = self.formatDialogue()
         

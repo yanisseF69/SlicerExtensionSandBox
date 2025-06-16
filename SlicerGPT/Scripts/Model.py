@@ -70,6 +70,7 @@ class Model:
         # print(mrml_scene)
 
         docs = self.manager.search(user_input, k=3)
+        print(docs[0])
         context = (
             "Context documents:\n"
             + "\n---\n".join([doc.page_content for doc in docs]) + "\n\n"
@@ -87,7 +88,7 @@ class Model:
         think = self.think(enable_thinking) if not use_api else ""
         messages = self.history + [{"role": "user", "content": context + user_input + think}]
 
-        if use_api or self.client is not None:
+        if use_api and self.client is not None:
             try:
                 resp = self.client.complete(
                 messages=messages,

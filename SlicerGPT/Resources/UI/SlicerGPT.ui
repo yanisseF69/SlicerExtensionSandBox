@@ -59,9 +59,9 @@
      <widget class="QRadioButton" name="apiButton">
       <property name="geometry">
        <rect>
-        <x>300</x>
+        <x>150</x>
         <y>0</y>
-        <width>291</width>
+        <width>171</width>
         <height>18</height>
        </rect>
       </property>
@@ -74,7 +74,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>291</width>
+        <width>141</width>
         <height>18</height>
        </rect>
       </property>
