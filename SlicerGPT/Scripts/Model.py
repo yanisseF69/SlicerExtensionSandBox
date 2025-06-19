@@ -3,6 +3,10 @@ from azure.ai.inference import ChatCompletionsClient
 from azure.ai.inference.models import SystemMessage, UserMessage
 from azure.core.credentials import AzureKeyCredential
 
+from queue import Queue
+import asyncio
+from threading import Thread
+
 import os
 os.environ["INFERENCE_API_TOKEN"] = ""
 
@@ -23,6 +27,9 @@ class Model:
         self.endpoint = "https://models.github.ai/inference"
         self.api_model = "openai/gpt-4.1"
         self.client = None
+
+        self.model_name = "qwen3:0.6b"
+        self.queue = Queue()
 
         self.manager = manager
         self.history = [{
@@ -116,6 +123,34 @@ class Model:
         self.history.append({"role": "assistant", "content": response})
 
         return response
+
+    async def _stream_response(self, user_input, mrml_scene, think_flag):
+        from ollama import AsyncClient
+        client = AsyncClient()
+        docs = self.manager.search(user_input, k=3)
+        context = (
+            "Context documents:\n" + "\n---\n".join([doc.page_content for doc in docs]) + "\n\n"
+            "MRML Scene:\n" + mrml_scene + "\n\n"
+            "User question: " + user_input + (" /think" if think_flag else " /no_think")
+        )
+
+        messages = self.history + [{"role": "user", "content": context}]
+        self.history.append({"role": "user", "content": user_input})
+        response = ""
+        async for chunk in await client.chat(model=self.model_name, messages=messages, stream=True):
+            content = chunk["message"]["content"]
+            self.queue.put(content)
+            response = response + content
+        self.history.append({"role": "user", "content": response})
+        self.queue.put("[[DONE]]")
+
+    def start_streaming(self, user_input, mrml_scene, think_flag):
+        def run():
+            asyncio.run(self._stream_response(user_input, mrml_scene, think_flag))
+        Thread(target=run, daemon=True).start()
+
+    def read_chunk(self):
+        return self.queue.get()
 
 # if __name__ == "__main__":
 

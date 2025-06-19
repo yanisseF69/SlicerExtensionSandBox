@@ -136,6 +136,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.prompt.textChanged.connect(self.onPromptTextChanged)
 
         # Buttons
+        self.ui.prompt.enabled = True
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
         self.ui.thinkBox.toggled.connect(self.onThinkBoxToggled)
 
@@ -248,6 +249,15 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         self.ui.apiKeyButton.enabled = True
         self.applyButtonEnabled = True
+
+    def updateConversationLive(self, partial_text):
+        html = markdown_to_html(partial_text)
+        formatted = (
+            f'<div style="text-align:right; margin: 5px;"><span style="color:blue; font-weight:bold;">You:</span><br>'
+            f'{markdown_to_html(self.logic.dialogue[-2]["content"])}</div>'
+            f'<div style="text-align:left; margin: 5px;"><span style="color:red; font-weight:bold;">SlicerGPT:</span><br>{html}</div>'
+        )
+        self.ui.conversation.setText(formatted)
     
     @staticmethod
     def areDependenciesSatisfied():
@@ -291,6 +301,10 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         """
         ScriptedLoadableModuleLogic.__init__(self)
         self.dialogue = []
+        self.streamingBuffer = ""
+        self.chunkTimer = qt.QTimer()
+        self.chunkTimer.setInterval(10)  # 100 ms
+        self.chunkTimer.timeout.connect(self.read_next_chunk)
         self.proc = qt.QProcess()
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         if base_dir not in sys.path:
@@ -309,12 +323,35 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         self.async_request = AsyncRequest()
         self.async_request.requestFinished.connect(self.handleResponse)
         self.async_request.requestFailed.connect(self.handleError)
+        self.async_request.requestChunk.connect(self.handleChunk)
 
         self.widget = None
         self.serverReady = False
 
         self.think = False
         self.useApi = False
+
+    def handleChunk(self, chunk):
+        self.streamingBuffer += chunk
+        if self.widget:
+            self.widget.updateConversationLive(self.streamingBuffer)
+
+    def read_next_chunk(self):
+        try:
+            chunk = self.model.read_chunk()
+            if chunk == "[[DONE]]":
+                self.chunkTimer.stop()
+                self.dialogue.pop()  # remove "Generating response..."
+                self.dialogue.append({"role": "assistant", "content": self.streamingBuffer})
+                if self.widget:
+                    self.widget.updateConversation(self.formatDialogue())
+            else:
+                self.streamingBuffer += chunk
+                if self.widget:
+                    self.widget.updateConversationLive(self.streamingBuffer)
+        except Exception as e:
+            print(f"[ERROR] Reading chunk: {e}")
+
 
         
     def getParameterNode(self):
@@ -352,7 +389,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         print(response_data)
 
         self.dialogue.pop()
-        self.dialogue.append({"role": "assistant", "content": response_data})
+        self.dialogue.append({"role": "assistant", "content": response_data['content']})
 
         if self.widget:
             self.widget.updateConversation(self.formatDialogue())
@@ -420,7 +457,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         
         formatted_dialogue = self.formatDialogue()
         
-        self.async_request.post("http://127.0.0.1:8081/generate", message)
+        self.async_request.stream("http://127.0.0.1:8081/generateStream", message)
         
         return formatted_dialogue
     

@@ -7,6 +7,7 @@ class AsyncRequest(qt.QObject):
     # Define signals that will be emitted when the request is finished
     requestFinished = qt.Signal(dict)
     requestFailed = qt.Signal(str)
+    requestChunk = qt.Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -18,8 +19,6 @@ class AsyncRequest(qt.QObject):
             url: request's URL
             json_data: JSON data to send
             
-        La réponse sera émise via le signal requestFinished.
-        Les erreurs seront émises via le signal requestFailed.
         """
         # Create a thread to execute the request
         thread = Thread(target=self._execute_request, args=(url, json_data))
@@ -61,6 +60,27 @@ class AsyncRequest(qt.QObject):
                 self, 
                 _CustomEvent(_CustomEvent.Error, error_msg)
             )
+
+    def stream(self, url, json_data):
+        thread = Thread(target=self._execute_stream, args=(url, json_data))
+        thread.daemon = True
+        thread.start()
+
+    def _execute_stream(self, url, json_data):
+        import httpx
+        try:
+            with httpx.stream("POST", url, json=json_data, timeout=60.0) as response:
+                response.raise_for_status()
+                buffer = ""
+                for chunk in response.iter_text():
+                    if chunk:
+                        self.requestChunk.emit(chunk)
+                        buffer += chunk
+
+            self.requestFinished.emit({"content": buffer})
+
+        except Exception as e:
+            self.requestFailed.emit(str(e))
 
     # Override event method to handle our custom events
     def event(self, event):
