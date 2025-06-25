@@ -121,11 +121,11 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # in batch mode, without a graphical user interface.
 
         self.logic = SlicerGPTLogic()
-        self.loadingLabel = qt.QLabel("Launching local AI server... Please wait.")
-        self.layout.addWidget(self.loadingLabel)
+        # self.loadingLabel = qt.QLabel("Launching local AI server... Please wait.")
+        # self.layout.addWidget(self.loadingLabel)
 
-        uiWidget.setEnabled(False)
-        self.uiWidget = uiWidget
+        # uiWidget.setEnabled(False)
+        # self.uiWidget = uiWidget
 
         self.logic.widget = self
 
@@ -287,6 +287,8 @@ import requests
 import sys
 from Scripts.Utils import extract_mrml_scene_as_text
 from Scripts.Utils import markdown_to_html
+from Scripts.Model import Model
+from Scripts.VectorStoreManager import VectorStoreManager
 import json
 
 class SlicerGPTLogic(ScriptedLoadableModuleLogic):
@@ -311,23 +313,27 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         # self.chunkTimer.timeout.connect(self.read_next_chunk)
         self.proc = qt.QProcess()
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        if base_dir not in sys.path:
-            sys.path.append(base_dir)
-        server_path = os.path.join(base_dir, "SlicerGPT", "Scripts", "LocalServer.py")
-        self.proc.setProgram("PythonSlicer")
-        self.proc.setArguments([server_path])
+        # if base_dir not in sys.path:
+        #     sys.path.append(base_dir)
+        # server_path = os.path.join(base_dir, "SlicerGPT", "Scripts", "LocalServer.py")
+        # self.proc.setProgram("PythonSlicer")
+        # self.proc.setArguments([server_path])
 
-        self.proc.readyReadStandardOutput.connect(self.handle_stdout)
-        self.proc.readyReadStandardError.connect(self.handle_stderr)
-        self.start()
-        self.proc.started.connect(lambda: print("[INFO] Server started"))
-        self.proc.finished.connect(lambda: print("[INFO] Server stopped"))
+        # self.proc.readyReadStandardOutput.connect(self.handle_stdout)
+        # self.proc.readyReadStandardError.connect(self.handle_stderr)
+        # self.start()
+        # self.proc.started.connect(lambda: print("[INFO] Server started"))
+        # self.proc.finished.connect(lambda: print("[INFO] Server stopped"))
+
+        manager = VectorStoreManager(os.path.join(base_dir, "SlicerGPT", "Data", "SlicerFAISS"))
+        chatbot = Model(manager)
 
         from Scripts.AsyncRequest import AsyncRequest
         self.async_request = AsyncRequest()
         self.async_request.requestFinished.connect(self.handleResponse)
         self.async_request.requestFailed.connect(self.handleError)
         self.async_request.requestChunk.connect(self.handleChunk)
+        self.async_request.chatbot = chatbot
 
         self.widget = None
         self.serverReady = False

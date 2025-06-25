@@ -8,6 +8,7 @@ class AsyncRequest(qt.QObject):
     requestFinished = qt.Signal(dict)
     requestFailed = qt.Signal(str)
     requestChunk = qt.Signal(str)
+    chatbot = None
 
     def __init__(self):
         super().__init__()
@@ -69,20 +70,20 @@ class AsyncRequest(qt.QObject):
         thread.start()
 
     def _execute_stream(self, url, json_data):
-        import httpx
         try:
-            with httpx.stream("POST", url, json=json_data, timeout=300.0) as response:
-                response.raise_for_status()
-                buffer = ""
-                for chunk in response.iter_text():
-                    if chunk:
-                        self.requestChunk.emit(chunk)
-                        buffer += chunk
+            self.chatbot.start_streaming(json_data["content"], json_data["mrml_scene"], json_data["think"])
+            buffer = ""
+            while True:
+                chunk = self.chatbot.read_chunk()
+                if chunk == "[[DONE]]":
+                    break
+                # self.requestChunk.emit(chunk)
+                buffer += chunk
 
             self.requestFinished.emit({"content": buffer})
 
         except Exception as e:
-            self.requestFailed.emit(str(e))
+            self.requestFailed.emit(str(e) + f" {json_data}")
 
     # Override event method to handle our custom events
     def event(self, event):

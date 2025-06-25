@@ -59,9 +59,9 @@
      <widget class="QRadioButton" name="apiButton">
       <property name="geometry">
        <rect>
-        <x>150</x>
+        <x>90</x>
         <y>0</y>
-        <width>171</width>
+        <width>71</width>
         <height>18</height>
        </rect>
       </property>
@@ -74,7 +74,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>141</width>
+        <width>71</width>
         <height>18</height>
        </rect>
       </property>
@@ -83,6 +83,19 @@
       </property>
       <property name="checked">
        <bool>true</bool>
+      </property>
+     </widget>
+     <widget class="QRadioButton" name="ollamaButton">
+      <property name="geometry">
+       <rect>
+        <x>170</x>
+        <y>0</y>
+        <width>91</width>
+        <height>18</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Ollama Model</string>
       </property>
      </widget>
     </widget>

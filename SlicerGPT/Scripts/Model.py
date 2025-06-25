@@ -16,17 +16,17 @@ FAISS_DIR = "./SlicerFAISS"
 class Model:
     def __init__(self, manager, model_name="unsloth/Qwen3-0.6B-GGUF", file_name="Qwen3-0.6B-Q8_0.gguf"):
 
-        self.llm = Llama.from_pretrained(
-            repo_id=model_name,
-            filename=file_name,
-            verbose=True,
-            n_ctx=8196,
-            n_gpu_layers=-1,
-            n_threads=1
-        )
-        self.endpoint = "https://models.github.ai/inference"
-        self.api_model = "openai/gpt-4.1"
-        self.client = None
+        # self.llm = Llama.from_pretrained(
+        #     repo_id=model_name,
+        #     filename=file_name,
+        #     verbose=True,
+        #     n_ctx=8196,
+        #     n_gpu_layers=-1,
+        #     n_threads=1
+        # )
+        # self.endpoint = "https://models.github.ai/inference"
+        # self.api_model = "openai/gpt-4.1"
+        # self.client = None
 
         self.model_name = "qwen3:0.6b"
         self.queue = Queue()
@@ -61,68 +61,68 @@ class Model:
         # self.history = []
         self.has_history = True
 
-    def initialize_azure_client(self, key):
-        safe_key = "".join(key.split())
-        self.client = ChatCompletionsClient(
-            endpoint=self.endpoint,
-            credential=AzureKeyCredential(safe_key),
-        )
+    # def initialize_azure_client(self, key):
+    #     safe_key = "".join(key.split())
+    #     self.client = ChatCompletionsClient(
+    #         endpoint=self.endpoint,
+    #         credential=AzureKeyCredential(safe_key),
+    #     )
 
-    def think(self, enable_thinking):
-        return " /think" if enable_thinking is True else " /no_think"
+    # def think(self, enable_thinking):
+    #     return " /think" if enable_thinking is True else " /no_think"
 
 
-    def generate_response(self, user_input, mrml_scene, enable_thinking, use_api):
+    # def generate_response(self, user_input, mrml_scene, enable_thinking, use_api):
         
-        # print(mrml_scene)
+    #     # print(mrml_scene)
 
-        docs = self.manager.search(user_input, k=3)
-        print(docs[0])
-        context = (
-            "Context documents:\n"
-            + "\n---\n".join([doc.page_content for doc in docs]) + "\n\n"
+    #     docs = self.manager.search(user_input, k=3)
+    #     print(docs[0])
+    #     context = (
+    #         "Context documents:\n"
+    #         + "\n---\n".join([doc.page_content for doc in docs]) + "\n\n"
 
-            "MRML Scene:\n"
-            + mrml_scene + "\n\n"
+    #         "MRML Scene:\n"
+    #         + mrml_scene + "\n\n"
 
-            "Now, based on this context, the recent conversation, and your internal knowledge of 3D Slicer, "
-            "answer the user's question as a real 3D Slicer expert would. "
-            "Be technically accurate, easy to understand, and do not make up facts.\n\n"
+    #         "Now, based on this context, the recent conversation, and your internal knowledge of 3D Slicer, "
+    #         "answer the user's question as a real 3D Slicer expert would. "
+    #         "Be technically accurate, easy to understand, and do not make up facts.\n\n"
 
-            f"User question: {user_input}"
-        )
+    #         f"User question: {user_input}"
+    #     )
         
-        think = self.think(enable_thinking) if not use_api else ""
-        messages = self.history + [{"role": "user", "content": context + user_input + think}]
+    #     think = self.think(enable_thinking) if not use_api else ""
+    #     messages = self.history + [{"role": "user", "content": context + user_input + think}]
 
-        if use_api and self.client is not None:
-            try:
-                resp = self.client.complete(
-                messages=messages,
-                temperature=0,
-                top_p=1.0,
-                model=self.api_model
-                )
-            except Exception as e:
-                print(f"An error occured while calling the client: {e}, using the Base model instead...")
-                messages[-1]["content"] += self.think(enable_thinking)
-                resp = self.llm.create_chat_completion(
-                messages=messages,
-                )
+    #     if use_api and self.client is not None:
+    #         try:
+    #             resp = self.client.complete(
+    #             messages=messages,
+    #             temperature=0,
+    #             top_p=1.0,
+    #             model=self.api_model
+    #             )
+    #         except Exception as e:
+    #             print(f"An error occured while calling the client: {e}, using the Base model instead...")
+    #             messages[-1]["content"] += self.think(enable_thinking)
+    #             resp = self.llm.create_chat_completion(
+    #             messages=messages,
+    #             )
                 
     
-        else:
-            resp = self.llm.create_chat_completion(
-                messages=messages,
-            )
+    #     else:
+    #         resp = self.llm.create_chat_completion(
+    #             messages=messages,
+    #         )
 
-        response = resp["choices"][0]["message"]["content"]
+    #     response = resp["choices"][0]["message"]["content"]
 
-        # Update history
-        self.history.append({"role": "user", "content": user_input})
-        self.history.append({"role": "assistant", "content": response})
+    #     # Update history
+    #     self.history.append({"role": "user", "content": user_input})
+    #     self.history.append({"role": "assistant", "content": response})
 
-        return response
+    #     return response
 
     async def _stream_response(self, user_input, mrml_scene, think_flag):
         from ollama import AsyncClient
