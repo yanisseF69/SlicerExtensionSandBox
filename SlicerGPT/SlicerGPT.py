@@ -246,6 +246,10 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         This method is called when the async request send a response.
         """
         self.ui.conversation.setText(dialogue_text)
+
+        self.ui.conversation.moveCursor(qt.QTextCursor.End)
+        self.ui.conversation.ensureCursorVisible()
+
         
         self.ui.apiKeyButton.enabled = True
         self.applyButtonEnabled = True
@@ -302,9 +306,9 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         ScriptedLoadableModuleLogic.__init__(self)
         self.dialogue = []
         self.streamingBuffer = ""
-        self.chunkTimer = qt.QTimer()
-        self.chunkTimer.setInterval(10)  # 100 ms
-        self.chunkTimer.timeout.connect(self.read_next_chunk)
+        # self.chunkTimer = qt.QTimer()
+        # self.chunkTimer.setInterval(10)  # 100 ms
+        # self.chunkTimer.timeout.connect(self.read_next_chunk)
         self.proc = qt.QProcess()
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         if base_dir not in sys.path:
@@ -333,24 +337,25 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
 
     def handleChunk(self, chunk):
         self.streamingBuffer += chunk
+        print(self.streamingBuffer)
         if self.widget:
             self.widget.updateConversationLive(self.streamingBuffer)
 
-    def read_next_chunk(self):
-        try:
-            chunk = self.model.read_chunk()
-            if chunk == "[[DONE]]":
-                self.chunkTimer.stop()
-                self.dialogue.pop()  # remove "Generating response..."
-                self.dialogue.append({"role": "assistant", "content": self.streamingBuffer})
-                if self.widget:
-                    self.widget.updateConversation(self.formatDialogue())
-            else:
-                self.streamingBuffer += chunk
-                if self.widget:
-                    self.widget.updateConversationLive(self.streamingBuffer)
-        except Exception as e:
-            print(f"[ERROR] Reading chunk: {e}")
+    # def read_next_chunk(self):
+    #     try:
+    #         chunk = self.model.read_chunk()
+    #         if chunk == "[[DONE]]":
+    #             self.chunkTimer.stop()
+    #             self.dialogue.pop()  # remove "Generating response..."
+    #             self.dialogue.append({"role": "assistant", "content": self.streamingBuffer})
+    #             if self.widget:
+    #                 self.widget.updateConversation(self.formatDialogue())
+    #         else:
+    #             self.streamingBuffer += chunk
+    #             if self.widget:
+    #                 self.widget.updateConversationLive(self.streamingBuffer)
+    #     except Exception as e:
+    #         print(f"[ERROR] Reading chunk: {e}")
 
 
         
@@ -452,8 +457,6 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         message["mrml_scene"] = extract_mrml_scene_as_text()
         message["think"] = self.think
         message["use_api"] = self.useApi
-
-        print(message["mrml_scene"])
         
         formatted_dialogue = self.formatDialogue()
         

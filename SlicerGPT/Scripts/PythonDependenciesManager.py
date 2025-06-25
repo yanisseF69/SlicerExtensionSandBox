@@ -20,7 +20,7 @@ class PythonDependencyChecker(object):
       import fastapi
       import uvicorn
       import azure
-      from ollama import AsyncClient
+      import ollama
 
       return True
 

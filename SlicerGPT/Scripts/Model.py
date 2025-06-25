@@ -126,6 +126,8 @@ class Model:
 
     async def _stream_response(self, user_input, mrml_scene, think_flag):
         from ollama import AsyncClient
+        import ollama
+        # ollama.pull(self.model_name)
         client = AsyncClient()
         docs = self.manager.search(user_input, k=3)
         context = (

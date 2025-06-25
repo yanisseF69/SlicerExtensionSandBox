@@ -61,6 +61,8 @@ class AsyncRequest(qt.QObject):
                 _CustomEvent(_CustomEvent.Error, error_msg)
             )
 
+    
+
     def stream(self, url, json_data):
         thread = Thread(target=self._execute_stream, args=(url, json_data))
         thread.daemon = True
@@ -69,7 +71,7 @@ class AsyncRequest(qt.QObject):
     def _execute_stream(self, url, json_data):
         import httpx
         try:
-            with httpx.stream("POST", url, json=json_data, timeout=60.0) as response:
+            with httpx.stream("POST", url, json=json_data, timeout=300.0) as response:
                 response.raise_for_status()
                 buffer = ""
                 for chunk in response.iter_text():
