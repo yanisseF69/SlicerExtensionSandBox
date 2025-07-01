@@ -121,15 +121,25 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # in batch mode, without a graphical user interface.
 
         self.logic = SlicerGPTLogic()
-        # self.loadingLabel = qt.QLabel("Launching local AI server... Please wait.")
-        # self.layout.addWidget(self.loadingLabel)
+        self.loadingWidget = qt.QWidget()
+        loadingLayout = qt.QVBoxLayout()
+        loadingLabel = qt.QLabel("Launching local AI engine... Please wait.")
+        loadingLabel.setAlignment(qt.Qt.AlignCenter)
+        loadingLayout.addWidget(loadingLabel)
+        self.loadingWidget.setLayout(loadingLayout)
 
-        # uiWidget.setEnabled(False)
-        # self.uiWidget = uiWidget
+        self.uiWidget = uiWidget
+        self.ui = slicer.util.childWidgetVariables(self.uiWidget)
+
+        self.stack = qt.QStackedWidget()
+        self.stack.addWidget(self.loadingWidget)
+        self.stack.addWidget(self.uiWidget)
+
+        self.layout.addWidget(self.stack)
+
+        self.stack.setCurrentIndex(0)
 
         self.logic.widget = self
-
-        self.applyButtonEnabled = True
 
         # Connections
 
@@ -144,6 +154,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.ui.baseButton.clicked.connect(lambda: self.onModelsBoxChanged(self.ui.baseButton))
         self.ui.apiButton.clicked.connect(lambda: self.onModelsBoxChanged(self.ui.apiButton))
+        self.ui.ollamaButton.clicked.connect(lambda: self.onModelsBoxChanged(self.ui.ollamaButton))
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
@@ -207,18 +218,18 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onModelsBoxChanged(self, button) -> None:
         """Called when the user change the model used."""
         if button.text == "API Model":
-            self.logic.setModel(True)
+            self.logic.setApi(True)
+        elif button.text == "Ollama Model":
+            self.logic.setOllama(True)
         else:
-            self.logic.setModel(False)
+            self.logic.setApi(False)
+            self.logic.setOllama(False)
 
     def onThinkBoxToggled(self, checked):
         self.logic.setThinking(checked)
 
     def onServerReady(self):
-        if hasattr(self, 'loadingLabel'):
-            self.loadingLabel.hide()
-        if hasattr(self, 'uiWidget'):
-            self.uiWidget.setEnabled(True)
+        self.stack.setCurrentIndex(1)
         self.applyButtonEnabled = True
 
     def onApiKeyInserted(self):
@@ -262,6 +273,8 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             f'<div style="text-align:left; margin: 5px;"><span style="color:red; font-weight:bold;">SlicerGPT:</span><br>{html}</div>'
         )
         self.ui.conversation.setText(formatted)
+        self.ui.conversation.moveCursor(qt.QTextCursor.End)
+        self.ui.conversation.ensureCursorVisible()
     
     @staticmethod
     def areDependenciesSatisfied():
@@ -287,8 +300,6 @@ import requests
 import sys
 from Scripts.Utils import extract_mrml_scene_as_text
 from Scripts.Utils import markdown_to_html
-from Scripts.Model import Model
-from Scripts.VectorStoreManager import VectorStoreManager
 import json
 
 class SlicerGPTLogic(ScriptedLoadableModuleLogic):
@@ -308,38 +319,36 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         ScriptedLoadableModuleLogic.__init__(self)
         self.dialogue = []
         self.streamingBuffer = ""
+        self.stderr_buffer = ""
         # self.chunkTimer = qt.QTimer()
         # self.chunkTimer.setInterval(10)  # 100 ms
         # self.chunkTimer.timeout.connect(self.read_next_chunk)
         self.proc = qt.QProcess()
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        # if base_dir not in sys.path:
-        #     sys.path.append(base_dir)
-        # server_path = os.path.join(base_dir, "SlicerGPT", "Scripts", "LocalServer.py")
-        # self.proc.setProgram("PythonSlicer")
-        # self.proc.setArguments([server_path])
+        if base_dir not in sys.path:
+            sys.path.append(base_dir)
+        server_path = os.path.join(base_dir, "SlicerGPT", "Scripts", "LocalServer.py")
+        self.proc.setProgram("PythonSlicer")
+        self.proc.setArguments([server_path])
 
-        # self.proc.readyReadStandardOutput.connect(self.handle_stdout)
-        # self.proc.readyReadStandardError.connect(self.handle_stderr)
-        # self.start()
-        # self.proc.started.connect(lambda: print("[INFO] Server started"))
-        # self.proc.finished.connect(lambda: print("[INFO] Server stopped"))
-
-        manager = VectorStoreManager(os.path.join(base_dir, "SlicerGPT", "Data", "SlicerFAISS"))
-        chatbot = Model(manager)
+        self.proc.readyReadStandardOutput.connect(self.handle_stdout)
+        self.proc.readyReadStandardError.connect(self.handle_stderr)
+        self.start()
+        self.proc.started.connect(lambda: print("[INFO] Server started"))
+        self.proc.finished.connect(lambda: print("[INFO] Server stopped"))
 
         from Scripts.AsyncRequest import AsyncRequest
         self.async_request = AsyncRequest()
         self.async_request.requestFinished.connect(self.handleResponse)
         self.async_request.requestFailed.connect(self.handleError)
         self.async_request.requestChunk.connect(self.handleChunk)
-        self.async_request.chatbot = chatbot
 
         self.widget = None
         self.serverReady = False
 
         self.think = False
         self.useApi = False
+        self.useOllama = False
 
     def handleChunk(self, chunk):
         self.streamingBuffer += chunk
@@ -389,6 +398,9 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
     def handle_stderr(self):
         raw = self.proc.readAllStandardError().data()
         error = raw.decode(errors="replace")
+        if "[[CHUNK]]" in error:
+            chunk = error.split("[[CHUNK]]")[-1]
+            self.handleChunk(chunk[:-1])
         print("[STDERR]", error)
         if not self.serverReady:
             self.checkServerInitialised(error)
@@ -410,7 +422,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         Handle errors during the async request.
         """
 
-        self.dialogue.append({"role": "assistant", "content": f"Erreur de communication avec le serveur: {error_message}"})
+        self.dialogue.append({"role": "assistant", "content": f"Server communication error: {error_message}"})
         
         if self.widget:
             self.widget.updateConversation(self.formatDialogue())
@@ -421,8 +433,11 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         """
         self.think = think
 
-    def setModel(self, apiModel):
-        self.useApi = apiModel
+    def setApi(self, useApi):
+        self.useApi = useApi
+    
+    def setOllama(self, useOllama):
+        self.useOllama = useOllama
 
     def checkStatus(self, data):
         if data.get("status") == "ok":
@@ -465,8 +480,11 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         message["use_api"] = self.useApi
         
         formatted_dialogue = self.formatDialogue()
-        
-        self.async_request.stream("http://127.0.0.1:8081/generateStream", message)
+        self.streamingBuffer = ""
+        if self.useOllama:
+            self.async_request.stream("http://127.0.0.1:8081/generateStream", message)
+        else:
+            self.async_request.post("http://127.0.0.1:8081/generate", message)
         
         return formatted_dialogue
     

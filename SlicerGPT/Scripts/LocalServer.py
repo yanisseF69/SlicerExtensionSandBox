@@ -72,9 +72,11 @@ async def generate(message: Message):
             chunk = chatbot.read_chunk()
             if chunk == "[[DONE]]":
                 break
+            # IMPORTANT : yield une vraie ligne avec retour chariot
+            logger.info("[[CHUNK]]" + chunk)
             yield chunk
 
-    return StreamingResponse(event_stream(), media_type="text/plain")
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 @inferenceServer.post("/addKey")
 async def addKey(apiKey: ApiKey):

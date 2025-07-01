@@ -70,20 +70,30 @@ class AsyncRequest(qt.QObject):
         thread.start()
 
     def _execute_stream(self, url, json_data):
+        import httpx
         try:
-            self.chatbot.start_streaming(json_data["content"], json_data["mrml_scene"], json_data["think"])
-            buffer = ""
-            while True:
-                chunk = self.chatbot.read_chunk()
-                if chunk == "[[DONE]]":
-                    break
-                # self.requestChunk.emit(chunk)
-                buffer += chunk
+            with httpx.stream("POST", url, json=json_data, timeout=300.0) as response:
+                response.raise_for_status()
+                buffer = ""
+                for chunk in response.iter_text():
+                    if chunk:
+                        buffer += chunk
+                        qt.QApplication.instance().postEvent(
+                            self,
+                            _CustomEvent(_CustomEvent.Chunk, chunk)
+                        )
 
-            self.requestFinished.emit({"content": buffer})
+            # qt.QApplication.instance().postEvent(
+            #     self,
+            #     _CustomEvent(_CustomEvent.Success, {"content": buffer})
+            # )
 
         except Exception as e:
-            self.requestFailed.emit(str(e) + f" {json_data}")
+            qt.QApplication.instance().postEvent(
+                self,
+                _CustomEvent(_CustomEvent.Error, f"Streaming error: {str(e)} {json_data}")
+            )
+
 
     # Override event method to handle our custom events
     def event(self, event):
@@ -92,19 +102,21 @@ class AsyncRequest(qt.QObject):
                 self.requestFinished.emit(event.data)
             elif event.event_kind == _CustomEvent.Error:
                 self.requestFailed.emit(event.data)
+            elif event.event_kind == _CustomEvent.Chunk:
+                self.requestChunk.emit(event.data)
             return True
         return qt.QObject.event(self, event)
 
 
 # Custom event class to safely pass data between threads
 class _CustomEvent(qt.QEvent):
-    # Define custom event type
     EventType = qt.QEvent.Type(qt.QEvent.registerEventType())
     
     # Event kinds
     Success = 0
     Error = 1
-    
+    Chunk = 2
+
     def __init__(self, event_kind, data):
         super().__init__(_CustomEvent.EventType)
         self.event_kind = event_kind
