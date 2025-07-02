@@ -219,6 +219,7 @@ class SlicerGPTWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """Called when the user change the model used."""
         if button.text == "API Model":
             self.logic.setApi(True)
+            self.logic.setOllama(False)
         elif button.text == "Ollama Model":
             self.logic.setOllama(True)
         else:

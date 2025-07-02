@@ -148,7 +148,26 @@ class Model:
         messages = self.history + [{"role": "user", "content": context + think}]
         self.history.append({"role": "user", "content": user_input})
         response = ""
-        async for chunk in await client.chat(model=self.ollama_model, messages=messages, stream=True):
+        if enable_thinking:
+            sampling_options = {
+                "temperature": 0.6,
+                "top_p": 0.95,
+                "top_k": 20,
+                "min_p": 0.0,
+            }
+        else:
+            sampling_options = {
+                "temperature": 0.7,
+                "top_p": 0.8,
+                "top_k": 20,
+                "min_p": 0.0,
+            }
+        async for chunk in await client.chat(
+            model=self.ollama_model,
+            messages=messages,
+            stream=True,
+            options=sampling_options
+        ):
             content = chunk["message"]["content"]
             self.queue.put(content)
             response = response + content
