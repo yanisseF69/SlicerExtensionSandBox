@@ -70,10 +70,9 @@ async def generate(message: Message):
     async def event_stream():
         while True:
             chunk = chatbot.read_chunk()
+            logger.info("[[CHUNK]]" + chunk)
             if chunk == "[[DONE]]":
                 break
-            # IMPORTANT : yield une vraie ligne avec retour chariot
-            logger.info("[[CHUNK]]" + chunk)
             yield chunk
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

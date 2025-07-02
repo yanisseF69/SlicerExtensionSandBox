@@ -15,6 +15,7 @@ class PythonDependencyChecker(object):
   def areDependenciesSatisfied(cls):
     try:
       import langchain_huggingface
+      import langchain_community
       import llama_cpp
       import faiss
       import fastapi

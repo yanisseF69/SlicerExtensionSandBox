@@ -18,7 +18,7 @@ class Model:
 
         self.llm = Llama.from_pretrained(
             repo_id="unsloth/Qwen3-0.6B-GGUF",
-            filename="Qwen3-0.6B-Q8_0.gguf",
+	        filename="Qwen3-0.6B-Q8_0.gguf",
             verbose=True,
             n_ctx=8196,
             n_gpu_layers=-1,

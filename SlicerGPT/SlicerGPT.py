@@ -352,7 +352,7 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
 
     def handleChunk(self, chunk):
         self.streamingBuffer += chunk
-        print(self.streamingBuffer)
+        # print(self.streamingBuffer)
         if self.widget:
             self.widget.updateConversationLive(self.streamingBuffer)
 
@@ -399,8 +399,11 @@ class SlicerGPTLogic(ScriptedLoadableModuleLogic):
         raw = self.proc.readAllStandardError().data()
         error = raw.decode(errors="replace")
         if "[[CHUNK]]" in error:
+            if "[[DONE]]" in error:
+                self.handleResponse({"content": self.streamingBuffer.strip()})
+                return
             chunk = error.split("[[CHUNK]]")[-1]
-            self.handleChunk(chunk[:-1])
+            self.handleChunk(chunk[:-1].strip("\r"))
         print("[STDERR]", error)
         if not self.serverReady:
             self.checkServerInitialised(error)

@@ -78,10 +78,10 @@ class AsyncRequest(qt.QObject):
                 for chunk in response.iter_text():
                     if chunk:
                         buffer += chunk
-                        qt.QApplication.instance().postEvent(
-                            self,
-                            _CustomEvent(_CustomEvent.Chunk, chunk)
-                        )
+                        # qt.QApplication.instance().postEvent(
+                        #     self,
+                        #     _CustomEvent(_CustomEvent.Chunk, chunk)
+                        # )
 
             # qt.QApplication.instance().postEvent(
             #     self,
